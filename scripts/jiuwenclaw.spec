@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""JiuwenClaw PyInstaller 打包配置。
+r"""JiuwenClaw PyInstaller 打包配置。
 
 构建前请先：
 1. 安装依赖: uv sync --extra dev
@@ -13,8 +13,33 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
-SPEC_DIR = os.path.abspath(os.path.dirname(__file__))
+SPEC_DIR = os.path.abspath(globals().get("SPECPATH", os.getcwd()))
 project_root = os.path.abspath(os.path.join(SPEC_DIR, os.pardir))
+
+try:
+    webview_datas = collect_data_files("webview")
+except Exception as exc:
+    raise SystemExit(
+        "错误: 当前虚拟环境缺少 pywebview，请先安装后再打包。"
+        "例如: pip install pywebview 或 uv sync --extra dev"
+    ) from exc
+
+# 这里只显式打包 Windows 桌面模式会用到的 pywebview 模块，
+# 避免 collect_submodules("webview") 把 Android/Kivy 后端也扫描进来。
+webview_hiddenimports = [
+    "webview",
+    "webview.guilib",
+    "webview.http",
+    "webview.errors",
+    "webview.event",
+    "webview.localization",
+    "webview.menu",
+    "webview.screen",
+    "webview.util",
+    "webview.window",
+    "webview.platforms.edgechromium",
+    "webview.platforms.winforms",
+]
 
 # 检查前端是否已构建
 web_dist = os.path.join(project_root, "jiuwenclaw", "web", "dist")
@@ -24,13 +49,13 @@ if not os.path.isdir(web_dist) or not os.listdir(web_dist):
     )
 
 # 数据文件：resources（含 agent 模板）、前端构建产物
-datas = collect_data_files("webview") + [
+datas = webview_datas + [
     (os.path.join(project_root, "jiuwenclaw", "resources"), "jiuwenclaw/resources"),
     (os.path.join(project_root, "jiuwenclaw", "web", "dist"), "jiuwenclaw/web/dist"),
 ]
 
 # 部分包需要显式声明隐藏导入
-hiddenimports = collect_submodules("webview") + [
+hiddenimports = webview_hiddenimports + [
     "pandas",  # pymilvus 依赖
     "tiktoken_ext",  # tiktoken 编码插件（cl100k_base 等）
     "tiktoken_ext.openai_public",
