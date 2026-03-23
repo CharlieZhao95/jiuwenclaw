@@ -32,45 +32,95 @@ DESKTOP_BRIDGE_SCRIPT = r"""
 
   const style = document.createElement('style');
   style.textContent = `
+    :root {
+      --desktop-controls-surface: color-mix(in srgb, var(--panel, #f3f5fa) 78%, transparent);
+      --desktop-controls-border: color-mix(in srgb, var(--border, rgba(148, 163, 184, 0.35)) 72%, transparent);
+      --desktop-controls-icon: color-mix(in srgb, var(--text, #0f172a) 78%, transparent);
+      --desktop-controls-icon-strong: color-mix(in srgb, var(--text-strong, #020617) 90%, transparent);
+      --desktop-controls-hover: color-mix(in srgb, var(--bg-hover, rgba(148, 163, 184, 0.14)) 76%, transparent);
+      --desktop-controls-close: color-mix(in srgb, var(--danger, #ef4444) 16%, white);
+      --desktop-controls-close-border: color-mix(in srgb, var(--danger, #ef4444) 34%, transparent);
+      --desktop-controls-close-icon: color-mix(in srgb, var(--danger, #ef4444) 78%, #7f1d1d);
+    }
+    :root[data-theme="light"] {
+      --desktop-controls-surface: rgba(255, 255, 255, 0.72);
+      --desktop-controls-border: rgba(148, 163, 184, 0.28);
+      --desktop-controls-icon: rgba(15, 23, 42, 0.72);
+      --desktop-controls-icon-strong: rgba(2, 6, 23, 0.88);
+      --desktop-controls-hover: rgba(148, 163, 184, 0.16);
+      --desktop-controls-close: rgba(254, 226, 226, 0.92);
+      --desktop-controls-close-border: rgba(248, 113, 113, 0.32);
+      --desktop-controls-close-icon: rgba(185, 28, 28, 0.88);
+    }
     #__jiuwenclaw_desktop_controls {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-left: 8px;
-      padding: 4px;
-      border-radius: 999px;
-      background: rgba(17, 24, 39, 0.72);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.26);
+      gap: 6px;
+      margin-left: 10px;
+      padding: 3px;
+      border-radius: 14px;
+      border: 1px solid var(--desktop-controls-border);
+      background: var(--desktop-controls-surface);
+      backdrop-filter: blur(18px) saturate(1.15);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.18);
       pointer-events: auto;
       user-select: none;
       flex-shrink: 0;
     }
     #__jiuwenclaw_desktop_controls button {
-      width: 34px;
-      height: 34px;
-      border: 0;
-      border-radius: 999px;
+      width: 28px;
+      height: 28px;
+      border: 1px solid transparent;
+      border-radius: 10px;
       cursor: pointer;
-      font: 600 14px/1 sans-serif;
-      color: #e5e7eb;
-      background: rgba(255, 255, 255, 0.12);
-      transition: transform 120ms ease, background 120ms ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--desktop-controls-icon);
+      background: transparent;
+      transition:
+        transform 120ms ease,
+        background 120ms ease,
+        border-color 120ms ease,
+        color 120ms ease,
+        box-shadow 120ms ease;
     }
     #__jiuwenclaw_desktop_controls button:hover {
       transform: translateY(-1px);
-      background: rgba(255, 255, 255, 0.2);
+      background: var(--desktop-controls-hover);
+      border-color: color-mix(in srgb, var(--desktop-controls-border) 90%, transparent);
+      color: var(--desktop-controls-icon-strong);
+    }
+    #__jiuwenclaw_desktop_controls button:active {
+      transform: translateY(0);
+    }
+    #__jiuwenclaw_desktop_controls button svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      stroke-width: 1.9;
+      fill: none;
+      vector-effect: non-scaling-stroke;
+    }
+    #__jiuwenclaw_desktop_controls button[data-action="fullscreen"] svg {
+      width: 13px;
+      height: 13px;
     }
     #__jiuwenclaw_desktop_controls button[data-action="close"] {
-      background: rgba(239, 68, 68, 0.82);
-      color: #fff;
+      color: var(--desktop-controls-close-icon);
+    }
+    #__jiuwenclaw_desktop_controls button[data-action="close"]:hover {
+      background: var(--desktop-controls-close);
+      border-color: var(--desktop-controls-close-border);
+      color: var(--desktop-controls-close-icon);
+      box-shadow: 0 6px 14px rgba(239, 68, 68, 0.12);
     }
     #__jiuwenclaw_desktop_controls.__floating {
       position: fixed;
-      top: 14px;
-      right: 14px;
+      top: 12px;
+      right: 12px;
       z-index: 2147483647;
-      padding: 8px;
+      padding: 4px;
       margin-left: 0;
     }
   `;
@@ -78,9 +128,15 @@ DESKTOP_BRIDGE_SCRIPT = r"""
   const container = document.createElement('div');
   container.id = '__jiuwenclaw_desktop_controls';
   container.innerHTML = `
-    <button type="button" data-action="minimize" title="Minimize">_</button>
-    <button type="button" data-action="fullscreen" title="Toggle fullscreen">[]</button>
-    <button type="button" data-action="close" title="Close">X</button>
+    <button type="button" data-action="minimize" title="Minimize" aria-label="Minimize window">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5h10" /></svg>
+    </button>
+    <button type="button" data-action="fullscreen" title="Toggle fullscreen" aria-label="Toggle fullscreen">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5H3.5V5M11 3.5h1.5V5M5 12.5H3.5V11M11 12.5h1.5V11" /></svg>
+    </button>
+    <button type="button" data-action="close" title="Close" aria-label="Close window">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.25 4.25l7.5 7.5M11.75 4.25l-7.5 7.5" /></svg>
+    </button>
   `;
 
   const callApi = (methodName) => {
