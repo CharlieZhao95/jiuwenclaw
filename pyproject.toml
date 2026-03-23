@@ -4,7 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jiuwenclaw"
-optional-dependencies = { dev = ["pyinstaller>=6.0.0"] }
+optional-dependencies = {
+    desktop = ["pywebview>=5.4"],
+    dev = ["pyinstaller>=6.0.0", "pywebview>=5.4"],
+}
 version = "0.1.7"
 description = "JiuwenClaw"
 requires-python = ">=3.11,<3.14"
@@ -40,6 +43,7 @@ jiuwenclaw-app = "jiuwenclaw.app:main"
 jiuwenclaw-web = "jiuwenclaw.app_web:main"
 jiuwenclaw-start = "jiuwenclaw.start_services:main"
 jiuwenclaw-init = "jiuwenclaw.init_workspace:main"
+jiuwenclaw-desktop = "jiuwenclaw.desktop_app:main"
 
 [tool.setuptools]
 # 入口脚本现在是 jiuwenclaw 包内的一部分，不需要 py-modules

@@ -4,15 +4,17 @@
 构建前请先：
 1. 安装依赖: uv sync --extra dev
 2. 构建前端: cd jiuwenclaw/web && npm run build
-3. 执行打包: .\Scripts\build-exe.ps1  或  uv run pyinstaller Scripts/jiuwenclaw.spec
+3. 执行打包: .\scripts\build-exe.ps1  或  uv run pyinstaller scripts/jiuwenclaw.spec
 """
 
 import os
 
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
 block_cipher = None
 
-# 项目根目录（PyInstaller 在项目根目录执行）
-project_root = os.path.abspath(".")
+SPEC_DIR = os.path.abspath(os.path.dirname(__file__))
+project_root = os.path.abspath(os.path.join(SPEC_DIR, os.pardir))
 
 # 检查前端是否已构建
 web_dist = os.path.join(project_root, "jiuwenclaw", "web", "dist")
@@ -22,13 +24,13 @@ if not os.path.isdir(web_dist) or not os.listdir(web_dist):
     )
 
 # 数据文件：resources（含 agent 模板）、前端构建产物
-datas = [
+datas = collect_data_files("webview") + [
     (os.path.join(project_root, "jiuwenclaw", "resources"), "jiuwenclaw/resources"),
     (os.path.join(project_root, "jiuwenclaw", "web", "dist"), "jiuwenclaw/web/dist"),
 ]
 
 # 部分包需要显式声明隐藏导入
-hiddenimports = [
+hiddenimports = collect_submodules("webview") + [
     "pandas",  # pymilvus 依赖
     "tiktoken_ext",  # tiktoken 编码插件（cl100k_base 等）
     "tiktoken_ext.openai_public",
@@ -46,7 +48,9 @@ hiddenimports = [
     "websockets",
     "loguru",
     "dotenv",
+    "webview",
     "jiuwenclaw.app_web",  # 静态文件服务
+    "jiuwenclaw.desktop_app",  # 桌面入口
 ]
 
 # 排除不需要的模块以减小体积（pandas 为 pymilvus/openjiuwen 所需，不可排除）
@@ -57,8 +61,8 @@ excludes = [
     "numpy.tests",
 ]
 
-# 入口脚本位于 Scripts 目录
-entry_script = os.path.join(project_root, "Scripts", "jiuwenclaw_exe_entry.py")
+# 入口脚本位于 scripts 目录
+entry_script = os.path.join(project_root, "scripts", "jiuwenclaw_exe_entry.py")
 
 a = Analysis(
     [entry_script],
@@ -81,9 +85,6 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
     name="jiuwenclaw",
     debug=False,
@@ -92,9 +93,21 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,  # 保留控制台便于查看日志
+    exclude_binaries=True,
+    console=False,
     disable_windowed_traceback=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name="jiuwenclaw",
 )

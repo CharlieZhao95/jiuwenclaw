@@ -1,23 +1,24 @@
 # JiuwenClaw 打包为独立 exe 指南
 
-本文档说明如何使用 uv + PyInstaller 将 JiuwenClaw 打包成**无需安装 Python 或 Node.js** 的独立 exe 应用。
+本文档说明如何使用 uv + PyInstaller + pywebview 将 JiuwenClaw 打包成 Windows 桌面应用。最终产物为 `onedir` 分发目录，适合继续交给 Inno Setup 制作安装包。
 
 ## 前置要求
 
 - **uv**：项目使用的 Python 包管理器
-- **Node.js**：仅用于**构建时**编译前端，最终 exe 不依赖 Node.js
-- **Windows**：当前 spec 针对 Windows，如需 Linux/macOS 需调整
+- **Node.js**：仅用于**构建时**编译前端，最终桌面程序不依赖 Node.js
+- **Windows**：当前 spec 与 pywebview 桌面壳按 Windows 优先配置
 
 ## 打包相关文件位置
 
-打包配置与入口脚本统一放在 `Scripts/` 目录，便于维护：
+打包配置与入口脚本统一放在 `scripts/` 目录，便于维护：
 
 | 文件 | 说明 |
 |------|------|
-| `Scripts/jiuwenclaw.spec` | PyInstaller 打包配置 |
-| `Scripts/jiuwenclaw_exe_entry.py` | exe 入口脚本（子命令分发） |
-| `Scripts/build-exe.ps1` | 一键打包脚本（PowerShell） |
-| `Scripts/build-exe.bat` | 一键打包脚本（批处理） |
+| `scripts/jiuwenclaw.spec` | PyInstaller 打包配置 |
+| `scripts/jiuwenclaw_exe_entry.py` | exe 入口脚本（桌面模式 + 子命令分发） |
+| `jiuwenclaw/desktop_app.py` | pywebview 桌面窗口与本地服务编排 |
+| `scripts/build-exe.ps1` | 一键打包脚本（PowerShell） |
+| `scripts/build-exe.bat` | 一键打包脚本（批处理） |
 
 ## 打包步骤
 
@@ -27,10 +28,10 @@
 
 ```powershell
 # PowerShell
-.\Scripts\build-exe.ps1
+.\scripts\build-exe.ps1
 ```
 
-或双击运行 `Scripts\build-exe.bat`。
+或双击运行 `scripts\build-exe.bat`。
 
 脚本会自动完成：安装依赖 → 构建前端 → 执行 PyInstaller 打包。
 
@@ -65,10 +66,10 @@ cd ../..
 #### 3. 执行打包
 
 ```bash
-uv run pyinstaller Scripts/jiuwenclaw.spec
+uv run pyinstaller scripts/jiuwenclaw.spec
 ```
 
-成功后，exe 位于 `dist/jiuwenclaw.exe`。
+成功后，桌面版位于 `dist/jiuwenclaw/`，主程序为 `dist/jiuwenclaw/jiuwenclaw.exe`。
 
 ## 使用打包后的 exe
 
@@ -89,20 +90,30 @@ uv run pyinstaller Scripts/jiuwenclaw.spec
    jiuwenclaw.exe
    ```
 
-4. 浏览器访问 `http://localhost:5173`（静态前端）或 `http://127.0.0.1:19000`（WebSocket，以实际配置为准）。
+4. 应用会启动本地后端与静态前端，并由 pywebview 直接打开无边框桌面窗口；默认不需要再手动打开浏览器。
+
+## 给 Inno Setup 的产物约定
+
+- 安装源目录使用整个 `dist/jiuwenclaw/`
+- 主程序入口使用 `dist/jiuwenclaw/jiuwenclaw.exe`
+- 首次初始化可由安装完成页触发 `jiuwenclaw.exe init`
+- 用户配置与运行数据位于 `%USERPROFILE%\.jiuwenclaw`，卸载时通常不建议默认删除
+- 若后续增加应用图标，请同时给 `scripts/jiuwenclaw.spec` 和 Inno Setup 脚本引用同一份 `.ico`
 
 ### 子命令
 
 | 命令 | 说明 |
 |------|------|
-| `jiuwenclaw.exe` | 启动主应用 |
+| `jiuwenclaw.exe` | 启动桌面应用 |
 | `jiuwenclaw.exe init` | 初始化工作区（首次使用） |
 
 ## 技术说明
 
-- **Python 运行时**：PyInstaller 将 Python 解释器及依赖打包进 exe，目标机器无需安装 Python。
-- **Node.js**：前端在构建阶段用 Node 编译，运行时只使用静态文件，exe 不依赖 Node。
+- **Python 运行时**：PyInstaller 将 Python 解释器及依赖打包进桌面分发目录，目标机器无需安装 Python。
+- **桌面窗口**：pywebview 负责加载本地 `http://127.0.0.1:5173` 页面，并提供无边框窗口壳。
+- **Node.js**：前端在构建阶段用 Node 编译，运行时只使用静态文件。
 - **工作区路径**：与 pip 安装一致，使用 `~/.jiuwenclaw` 作为配置与工作区根目录。
+- **安装包制作**：后续使用 Inno Setup 时，请将整个 `dist/jiuwenclaw/` 目录作为安装源，而不是只取单个 exe。
 
 ## 常见问题
 
@@ -112,11 +123,11 @@ uv run pyinstaller Scripts/jiuwenclaw.spec
 
 ### 2. 运行 exe 报错 ModuleNotFoundError
 
-在 `Scripts/jiuwenclaw.spec` 的 `hiddenimports` 中补充缺失模块，然后重新打包。
+在 `scripts/jiuwenclaw.spec` 的 `hiddenimports` 中补充缺失模块，然后重新打包。
 
 ### 3. exe 体积过大
 
-可在 `Scripts/jiuwenclaw.spec` 的 `excludes` 中排除未用模块，或使用 `--onedir` 模式（目录分发）代替单文件。
+当前已经使用 `onedir` 模式，便于桌面应用拉起子进程并方便 Inno Setup 安装。若仍需继续缩减体积，可在 `scripts/jiuwenclaw.spec` 的 `excludes` 中排除未用模块。
 
 ### 4. 杀毒软件误报
 
