@@ -121,6 +121,22 @@ DESKTOP_BRIDGE_SCRIPT = r"""
       padding: 4px;
       margin-left: 0;
     }
+    .topbar {
+      -webkit-app-region: drag;
+    }
+    .topbar button,
+    .topbar input,
+    .topbar textarea,
+    .topbar select,
+    .topbar a,
+    .topbar [role="button"],
+    .topbar .theme-toggle,
+    .topbar .pill,
+    .topbar .mono,
+    #__jiuwenclaw_desktop_controls,
+    #__jiuwenclaw_desktop_controls * {
+      -webkit-app-region: no-drag;
+    }
   `;
 
   const container = document.createElement('div');
@@ -464,7 +480,7 @@ class DesktopRuntime:
             height=height,
             min_size=(1100, 720),
             frameless=True,
-            easy_drag=True,
+            easy_drag=False,
             text_select=True,
             background_color="#0f172a",
         )
