@@ -9,7 +9,7 @@ r"""JiuwenClaw PyInstaller 打包配置。
 
 import os
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 block_cipher = None
 
@@ -53,6 +53,9 @@ datas = webview_datas + [
     (os.path.join(project_root, "jiuwenclaw", "resources"), "jiuwenclaw/resources"),
     (os.path.join(project_root, "jiuwenclaw", "web", "dist"), "jiuwenclaw/web/dist"),
 ]
+datas += copy_metadata("fastmcp", recursive=True)
+datas += copy_metadata("mcp", recursive=True)
+datas += copy_metadata("openjiuwen", recursive=True)
 
 # 部分包需要显式声明隐藏导入
 hiddenimports = webview_hiddenimports + [
