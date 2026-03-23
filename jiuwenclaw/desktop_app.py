@@ -33,19 +33,18 @@ DESKTOP_BRIDGE_SCRIPT = r"""
   const style = document.createElement('style');
   style.textContent = `
     #__jiuwenclaw_desktop_controls {
-      position: fixed;
-      top: 14px;
-      right: 14px;
-      z-index: 2147483647;
       display: flex;
+      align-items: center;
       gap: 8px;
-      padding: 8px;
+      margin-left: 8px;
+      padding: 4px;
       border-radius: 999px;
       background: rgba(17, 24, 39, 0.72);
       backdrop-filter: blur(10px);
       box-shadow: 0 12px 28px rgba(15, 23, 42, 0.26);
       pointer-events: auto;
       user-select: none;
+      flex-shrink: 0;
     }
     #__jiuwenclaw_desktop_controls button {
       width: 34px;
@@ -65,6 +64,14 @@ DESKTOP_BRIDGE_SCRIPT = r"""
     #__jiuwenclaw_desktop_controls button[data-action="close"] {
       background: rgba(239, 68, 68, 0.82);
       color: #fff;
+    }
+    #__jiuwenclaw_desktop_controls.__floating {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 2147483647;
+      padding: 8px;
+      margin-left: 0;
     }
   `;
 
@@ -104,8 +111,36 @@ DESKTOP_BRIDGE_SCRIPT = r"""
     }
   });
 
+  const mountControls = () => {
+    const topbar = document.querySelector('.topbar');
+    if (topbar instanceof HTMLElement) {
+      const rightZone = topbar.lastElementChild;
+      if (rightZone instanceof HTMLElement) {
+        rightZone.appendChild(container);
+        container.classList.remove('__floating');
+        return true;
+      }
+      topbar.appendChild(container);
+      container.classList.remove('__floating');
+      return true;
+    }
+
+    container.classList.add('__floating');
+    document.body.appendChild(container);
+    return false;
+  };
+
   document.head.appendChild(style);
-  document.body.appendChild(container);
+
+  if (!mountControls()) {
+    const observer = new MutationObserver(() => {
+      if (mountControls()) {
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    window.addEventListener('beforeunload', () => observer.disconnect(), { once: true });
+  }
 })();
 """
 
