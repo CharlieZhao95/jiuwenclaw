@@ -28,22 +28,21 @@ DESKTOP_BRIDGE_SCRIPT = r"""
   if (window.__jiuwenclawDesktopControlsMounted) {
     return;
   }
-  window.__jiuwenclawDesktopControlsMounted = true;
 
   const style = document.createElement('style');
   style.textContent = `
     :root {
-      --desktop-controls-surface: color-mix(in srgb, var(--panel, #f3f5fa) 78%, transparent);
-      --desktop-controls-border: color-mix(in srgb, var(--border, rgba(148, 163, 184, 0.35)) 72%, transparent);
-      --desktop-controls-icon: color-mix(in srgb, var(--text, #0f172a) 78%, transparent);
-      --desktop-controls-icon-strong: color-mix(in srgb, var(--text-strong, #020617) 90%, transparent);
-      --desktop-controls-hover: color-mix(in srgb, var(--bg-hover, rgba(148, 163, 184, 0.14)) 76%, transparent);
-      --desktop-controls-close: color-mix(in srgb, var(--danger, #ef4444) 16%, white);
-      --desktop-controls-close-border: color-mix(in srgb, var(--danger, #ef4444) 34%, transparent);
-      --desktop-controls-close-icon: color-mix(in srgb, var(--danger, #ef4444) 78%, #7f1d1d);
+      --desktop-controls-surface: rgba(22, 28, 45, 0.76);
+      --desktop-controls-border: rgba(71, 85, 105, 0.4);
+      --desktop-controls-icon: rgba(226, 232, 240, 0.82);
+      --desktop-controls-icon-strong: rgba(248, 250, 252, 0.98);
+      --desktop-controls-hover: rgba(255, 255, 255, 0.08);
+      --desktop-controls-close: rgba(127, 29, 29, 0.22);
+      --desktop-controls-close-border: rgba(248, 113, 113, 0.28);
+      --desktop-controls-close-icon: rgba(254, 202, 202, 0.96);
     }
     :root[data-theme="light"] {
-      --desktop-controls-surface: rgba(255, 255, 255, 0.72);
+      --desktop-controls-surface: rgba(255, 255, 255, 0.92);
       --desktop-controls-border: rgba(148, 163, 184, 0.28);
       --desktop-controls-icon: rgba(15, 23, 42, 0.72);
       --desktop-controls-icon-strong: rgba(2, 6, 23, 0.88);
@@ -61,8 +60,7 @@ DESKTOP_BRIDGE_SCRIPT = r"""
       border-radius: 14px;
       border: 1px solid var(--desktop-controls-border);
       background: var(--desktop-controls-surface);
-      backdrop-filter: blur(18px) saturate(1.15);
-      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12);
       pointer-events: auto;
       user-select: none;
       flex-shrink: 0;
@@ -88,7 +86,7 @@ DESKTOP_BRIDGE_SCRIPT = r"""
     #__jiuwenclaw_desktop_controls button:hover {
       transform: translateY(-1px);
       background: var(--desktop-controls-hover);
-      border-color: color-mix(in srgb, var(--desktop-controls-border) 90%, transparent);
+      border-color: var(--desktop-controls-border);
       color: var(--desktop-controls-icon-strong);
     }
     #__jiuwenclaw_desktop_controls button:active {
@@ -139,6 +137,8 @@ DESKTOP_BRIDGE_SCRIPT = r"""
     </button>
   `;
 
+  window.__jiuwenclawDesktopControlsMounted = true;
+
   const callApi = (methodName) => {
     const api = window.pywebview && window.pywebview.api;
     if (!api || typeof api[methodName] !== 'function') {
@@ -154,10 +154,14 @@ DESKTOP_BRIDGE_SCRIPT = r"""
 
   container.addEventListener('click', (event) => {
     const target = event.target;
-    if (!(target instanceof HTMLElement)) {
+    if (!(target instanceof Element)) {
       return;
     }
-    const action = target.dataset.action;
+    const button = target.closest('button[data-action]');
+    if (!(button instanceof HTMLElement)) {
+      return;
+    }
+    const action = button.dataset.action;
     if (action === 'minimize') {
       void callApi('minimize_window');
     } else if (action === 'fullscreen') {
