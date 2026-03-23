@@ -4,10 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jiuwenclaw"
-optional-dependencies = {
-    desktop = ["pywebview>=5.4"],
-    dev = ["pyinstaller>=6.0.0", "pywebview>=5.4"],
-}
 version = "0.1.7"
 description = "JiuwenClaw"
 requires-python = ">=3.11,<3.14"
@@ -37,6 +33,10 @@ dependencies = [
     "mutagen>=1.47.0",
     "google-genai>=1.68.0",
 ]
+
+[project.optional-dependencies]
+desktop = ["pywebview>=5.4"]
+dev = ["pyinstaller>=6.0.0", "pywebview>=5.4"]
 
 [project.scripts]
 jiuwenclaw-app = "jiuwenclaw.app:main"
