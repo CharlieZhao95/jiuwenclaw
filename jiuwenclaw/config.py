@@ -178,3 +178,14 @@ def update_permissions_enabled_in_config(value: bool) -> None:
         data["permissions"] = {}
     data["permissions"]["enabled"] = value
     _dump_yaml_round_trip(_CONFIG_YAML_PATH, data)
+
+
+def update_updater_in_config(updates: dict[str, Any]) -> None:
+    """只更新 updater 段并写回。"""
+    data = _load_yaml_round_trip(_CONFIG_YAML_PATH)
+    if "updater" not in data:
+        data["updater"] = {}
+    section = data["updater"]
+    for key, value in updates.items():
+        section[key] = value
+    _dump_yaml_round_trip(_CONFIG_YAML_PATH, data)

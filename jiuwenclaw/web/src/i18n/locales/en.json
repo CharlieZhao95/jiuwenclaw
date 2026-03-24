@@ -23,7 +23,8 @@
     "settings": "Settings",
     "config": "Configuration",
     "browser": "Browser Service",
-    "logs": "Logs"
+    "logs": "Logs",
+    "update": "Updates"
   },
   "statusBar": {
     "cancel": "Cancel",
@@ -657,6 +658,56 @@
     "hoursAgo": "{{count}} hour(s) ago",
     "minutesAgo": "{{count}} minute(s) ago",
     "justNow": "Just now"
+  },
+  "updatePanel": {
+    "title": "App Updates",
+    "subtitle": "Check for new versions and download the silent Windows installer.",
+    "configTitle": "Update Source Config",
+    "configSubtitle": "You can switch to a local test endpoint such as http://127.0.0.1:8000/latest.json.",
+    "checkNow": "Check for updates",
+    "checking": "Checking...",
+    "downloadAndInstall": "Download update",
+    "downloading": "Downloading...",
+    "installNow": "Install and restart",
+    "currentVersion": "Current version",
+    "latestVersion": "Latest version",
+    "state": "Update state",
+    "publishedAt": "Published at",
+    "releaseNotes": "Release notes",
+    "downloadProgress": "Download progress",
+    "readyToInstall": "The installer is ready. Click “Install and restart” to close the app and perform a silent upgrade.",
+    "unsupported": "This update flow is not supported on the current platform.",
+    "noReleaseNotes": "No release notes available.",
+    "states": {
+      "idle": "Not checked",
+      "checking": "Checking",
+      "up_to_date": "Up to date",
+      "update_available": "Update available",
+      "downloading": "Downloading",
+      "downloaded": "Downloaded",
+      "installing": "Installing",
+      "error": "Check failed",
+      "unsupported": "Unsupported platform",
+      "disabled": "Updater disabled"
+    },
+    "errors": {
+      "loadFailed": "Failed to load update status",
+      "loadConfigFailed": "Failed to load updater config",
+      "checkFailed": "Failed to check for updates",
+      "downloadFailed": "Failed to download the update",
+      "saveConfigFailed": "Failed to save updater config",
+      "installUnavailable": "The installer cannot be started here. Please run inside the Windows desktop app.",
+      "installFailed": "Failed to launch the update installer"
+    },
+    "fields": {
+      "enabled": "Enable updater",
+      "timeoutSeconds": "Timeout seconds",
+      "releaseApiUrl": "Release API URL",
+      "repoOwner": "GitHub owner",
+      "repoName": "GitHub repo",
+      "assetPattern": "Installer asset pattern",
+      "sha256Pattern": "SHA256 asset pattern"
+    }
   },
   "version": "Version {{version}}",
   "app": {

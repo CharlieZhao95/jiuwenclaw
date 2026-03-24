@@ -63,6 +63,12 @@ class ReqMethod(Enum):
     CHANNEL_WHATSAPP_GET_CONF = "channel.whatsapp.get_conf"
     CHANNEL_WHATSAPP_SET_CONF = "channel.whatsapp.set_conf"
 
+    UPDATER_GET_STATUS = "updater.get_status"
+    UPDATER_CHECK = "updater.check"
+    UPDATER_DOWNLOAD = "updater.download"
+    UPDATER_GET_CONF = "updater.get_conf"
+    UPDATER_SET_CONF = "updater.set_conf"
+
 class EventType(Enum):
     CONNECTION_ACK = "connection.ack"
     HELLO = "hello"
