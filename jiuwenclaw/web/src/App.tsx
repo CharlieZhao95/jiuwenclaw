@@ -17,6 +17,7 @@ import { ConfigPanel } from './components/ConfigPanel';
 import { LogsPanel } from './components/LogsPanel';
 import { ChannelsPanel } from './components/ChannelsPanel';
 import { BrowserPanel } from './components/BrowserPanel';
+import { UpdatePanel } from './components/UpdatePanel';
 import { StatusBar } from './components/StatusBar';
 import { HeartbeatMessageModal } from './features/HeartbeatMessageModal';
 import { useWebSocket } from './hooks';
@@ -27,7 +28,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from './i18n';
 import './App.css';
 
-type MainNavKey = 'chat' | 'skills' | 'agents' | 'sessions' | 'heartbeat' | 'cron' | 'channels' | 'configpanel' | 'logspanel' | 'browserpanel';
+type MainNavKey = 'chat' | 'skills' | 'agents' | 'sessions' | 'heartbeat' | 'cron' | 'channels' | 'configpanel' | 'logspanel' | 'browserpanel' | 'updatepanel';
 
 // 错误边界组件
 interface ErrorBoundaryState {
@@ -230,6 +231,7 @@ function AppContent() {
   const [heartbeatModalOpen, setHeartbeatModalOpen] = useState(false);
   const [hasVisitedSkills, setHasVisitedSkills] = useState(false);
   const [hasVisitedChannels, setHasVisitedChannels] = useState(false);
+  const startupUpdateCheckRef = useRef(false);
   /** 从 SkillNet 等入口跳转配置页时，首次展开对应配置分组（如第三方服务） */
   const [configInitialExpandGroup, setConfigInitialExpandGroup] = useState<string | null>(null);
   useEffect(() => {
@@ -312,6 +314,16 @@ function AppContent() {
       setConfigError(t('app.configError'));
     }
   }, [request, t]);
+
+  useEffect(() => {
+    if (!isConnected || startupUpdateCheckRef.current) {
+      return;
+    }
+    startupUpdateCheckRef.current = true;
+    void request('updater.check', { manual: false }).catch((updateError) => {
+      console.warn('Startup updater check failed:', updateError);
+    });
+  }, [isConnected, request]);
 
   const clearRestartAutoCloseTimer = useCallback(() => {
     if (restartAutoCloseTimerRef.current != null) {
@@ -561,6 +573,7 @@ function AppContent() {
         activeNav={activeNav}
         onNavigate={handleNavigate}
         sessionId={sessionId}
+        appVersion={typeof serverConfig?.app_version === 'string' ? serverConfig.app_version : '0.1.7'}
       />
 
       {/* Main Content */}
@@ -644,6 +657,11 @@ function AppContent() {
         {activeNav === 'browserpanel' && (
           <div className="app-section">
             <BrowserPanel isConnected={isConnected} request={request} />
+          </div>
+        )}
+        {activeNav === 'updatepanel' && (
+          <div className="app-section">
+            <UpdatePanel isConnected={isConnected} request={request} />
           </div>
         )}
 

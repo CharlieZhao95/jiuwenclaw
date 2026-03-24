@@ -8,18 +8,20 @@ import { useTranslation } from 'react-i18next';
 import { OffloadFilesWidget } from './OffloadFilesWidget';
 import './SessionSidebar.css';
 
-type MainNavKey = 'chat' | 'skills' | 'agents' | 'sessions' | 'heartbeat' | 'cron' | 'channels' | 'configpanel' | 'logspanel' | 'browserpanel';
+type MainNavKey = 'chat' | 'skills' | 'agents' | 'sessions' | 'heartbeat' | 'cron' | 'channels' | 'configpanel' | 'logspanel' | 'browserpanel' | 'updatepanel';
 
 interface SessionSidebarProps {
   activeNav: MainNavKey;
   onNavigate: (nav: MainNavKey) => void;
   sessionId: string;
+  appVersion: string;
 }
 
 export function SessionSidebar({
   activeNav,
   onNavigate,
   sessionId,
+  appVersion,
 }: SessionSidebarProps) {
   const { t } = useTranslation();
   return (
@@ -133,6 +135,16 @@ export function SessionSidebar({
           </svg>
           {t('nav.logs')}
         </button>
+        <button
+          onClick={() => onNavigate('updatepanel')}
+          className={`nav-item w-full ${activeNav === 'updatepanel' ? 'active' : ''}`}
+        >
+          <svg className="w-4 h-4 nav-item__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V3.75m0 0L7.5 8.25M12 3.75l4.5 4.5" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 15.75v1.5A2.25 2.25 0 006 19.5h12a2.25 2.25 0 002.25-2.25v-1.5" />
+          </svg>
+          {t('nav.update')}
+        </button>
       </div>
 
       <div className="flex-1" />
@@ -141,7 +153,7 @@ export function SessionSidebar({
 
       <div className="pt-4 mt-4 border-t border-border text-xs text-text-muted">
         <div className="px-2.5">
-          <span>{t('version', { version: '0.1.7' })}</span>
+          <span>{t('version', { version: appVersion })}</span>
         </div>
       </div>
     </aside>

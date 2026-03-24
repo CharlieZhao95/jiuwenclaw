@@ -355,6 +355,9 @@ class _WindowApi:
     def close_window(self) -> bool:
         return self._runtime.close_window()
 
+    def install_update(self, installer_path: str) -> bool:
+        return self._runtime.install_update(installer_path)
+
 
 class DesktopRuntime:
     def __init__(self, frontend_host: str, frontend_port: int, backend_port: int) -> None:
@@ -423,6 +426,56 @@ class DesktopRuntime:
         if self.window is None or not hasattr(self.window, "destroy"):
             return False
         self.window.destroy()
+        return True
+
+    def install_update(self, installer_path: str) -> bool:
+        if os.name != "nt":
+            logger.warning("[desktop] update install is only supported on Windows")
+            return False
+
+        target = Path(installer_path).expanduser().resolve()
+        if not target.is_file():
+            logger.error("[desktop] installer not found: %s", target)
+            return False
+
+        updates_dir = USER_WORKSPACE_DIR / ".updates"
+        updates_dir.mkdir(parents=True, exist_ok=True)
+        script_path = updates_dir / "install-update.cmd"
+        app_executable = Path(sys.executable).resolve()
+        script_path.write_text(
+            "\r\n".join([
+                "@echo off",
+                "setlocal",
+                f"set \"TARGET_PID={os.getpid()}\"",
+                f"set \"INSTALLER={target}\"",
+                f"set \"APP_EXE={app_executable}\"",
+                ":wait_loop",
+                'tasklist /FI "PID eq %TARGET_PID%" | findstr /B /C:"%TARGET_PID%" >nul',
+                "if %ERRORLEVEL%==0 (",
+                "  timeout /t 1 /nobreak >nul",
+                "  goto wait_loop",
+                ")",
+                'start "" /wait "%INSTALLER%" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CLOSEAPPLICATIONS',
+                "timeout /t 2 /nobreak >nul",
+                'start "" "%APP_EXE%"',
+                "endlocal",
+            ]),
+            encoding="utf-8",
+        )
+
+        detached_flags = (
+            getattr(subprocess, "DETACHED_PROCESS", 0)
+            | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            | _creationflags()
+        )
+        subprocess.Popen(
+            ["cmd.exe", "/C", str(script_path)],
+            creationflags=detached_flags,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        logger.info("[desktop] launched update installer helper: %s", script_path)
+        self.close_window()
         return True
 
     def shutdown(self) -> None:
