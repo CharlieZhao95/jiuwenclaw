@@ -4,21 +4,13 @@
 from __future__ import annotations
 
 import sys
-import threading
 
 
-def _run_app_with_web() -> None:
-    """启动主应用，并在后台线程运行静态文件服务（等效 jiuwenclaw-start all）。"""
-    from jiuwenclaw.app_web import main as web_main
-
-    def run_web():
-        web_main()
-
-    t = threading.Thread(target=run_web, daemon=True)
-    t.start()
-
-    from jiuwenclaw.app import main as app_main
-    app_main()
+def _pop_flag(flag: str) -> bool:
+    if flag not in sys.argv:
+        return False
+    sys.argv.remove(flag)
+    return True
 
 
 def main() -> None:
@@ -28,14 +20,23 @@ def main() -> None:
         from jiuwenclaw.init_workspace import main as init_main
         init_main()
         return
+    if _pop_flag("--desktop-run-app"):
+        from jiuwenclaw.app import main as app_main
+        app_main()
+        return
+    if _pop_flag("--desktop-run-web"):
+        from jiuwenclaw.app_web import main as web_main
+        web_main()
+        return
     # 子命令：浏览器启动（供主进程 subprocess 调用）
     if "--browser-start-client" in sys.argv:
         idx = sys.argv.index("--browser-start-client")
         sys.argv.pop(idx)
         from jiuwenclaw.agentserver.tools.browser_start_client import main as browser_main
         raise SystemExit(browser_main())
-    # 默认运行主应用（含静态文件服务）
-    _run_app_with_web()
+    # 默认运行桌面应用。
+    from jiuwenclaw.desktop_app import main as desktop_main
+    desktop_main()
 
 
 if __name__ == "__main__":

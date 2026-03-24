@@ -8,6 +8,7 @@ import argparse
 import http.client
 import json
 import logging
+import mimetypes
 import os
 import select
 import socket
@@ -119,6 +120,16 @@ def _generate_agent_data(project_root: Path) -> None:
 class _SpaStaticHandler(SimpleHTTPRequestHandler):
     """Static file handler with SPA fallback to index.html."""
 
+    extensions_map = {
+        **SimpleHTTPRequestHandler.extensions_map,
+        ".css": "text/css; charset=utf-8",
+        ".js": "text/javascript; charset=utf-8",
+        ".mjs": "text/javascript; charset=utf-8",
+        ".json": "application/json; charset=utf-8",
+        ".svg": "image/svg+xml",
+        ".wasm": "application/wasm",
+    }
+
     api_target = ""
     ws_target = ""
     ws_disable_compress = False
@@ -146,6 +157,17 @@ class _SpaStaticHandler(SimpleHTTPRequestHandler):
     _WS_HANDSHAKE_RECV_SIZE = 4096
     _DEFAULT_HTTPS_PORT = 443
     _DEFAULT_HTTP_PORT = 80
+
+    def guess_type(self, path: str) -> str:
+        suffix = Path(path).suffix.lower()
+        if suffix in self.extensions_map:
+            return self.extensions_map[suffix]
+
+        guessed, _ = mimetypes.guess_type(path)
+        if guessed:
+            return guessed
+
+        return "application/octet-stream"
 
     class _WsTextFrameParser:
         """Parse websocket text frames from a byte stream."""

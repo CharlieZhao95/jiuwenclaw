@@ -1,6 +1,6 @@
 @echo off
 REM JiuwenClaw 打包 exe 脚本
-REM 用法: Scripts\build-exe.bat  或双击运行
+REM 用法: scripts\build-exe.bat  或双击运行
 
 cd /d "%~dp0\.."
 
@@ -22,10 +22,11 @@ cd ..\..
 
 echo.
 echo [3/3] 执行 PyInstaller 打包...
-call uv run pyinstaller Scripts\jiuwenclaw.spec
+call uv run pyinstaller scripts\jiuwenclaw.spec
 if errorlevel 1 exit /b 1
 
 echo.
 echo === 打包完成 ===
-echo exe 位置: %cd%\dist\jiuwenclaw.exe
+echo 桌面版目录: %cd%\dist\jiuwenclaw
+echo 主程序: %cd%\dist\jiuwenclaw\jiuwenclaw.exe
 pause

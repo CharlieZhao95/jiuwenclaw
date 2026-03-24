@@ -1,5 +1,5 @@
 # JiuwenClaw 打包 exe 脚本
-# 用法: .\Scripts\build-exe.ps1  或  pwsh -File Scripts\build-exe.ps1
+# 用法: .\scripts\build-exe.ps1  或  pwsh -File scripts\build-exe.ps1
 
 $ErrorActionPreference = "Stop"
 
@@ -25,8 +25,9 @@ Pop-Location
 
 # 3. 执行 PyInstaller 打包
 Write-Host "`n[3/3] 执行 PyInstaller 打包..." -ForegroundColor Yellow
-uv run pyinstaller Scripts\jiuwenclaw.spec
+uv run pyinstaller scripts\jiuwenclaw.spec
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`n=== 打包完成 ===" -ForegroundColor Green
-Write-Host "exe 位置: $ProjectRoot\dist\jiuwenclaw.exe" -ForegroundColor Green
+Write-Host "桌面版目录: $ProjectRoot\dist\jiuwenclaw" -ForegroundColor Green
+Write-Host "主程序: $ProjectRoot\dist\jiuwenclaw\jiuwenclaw.exe" -ForegroundColor Green
