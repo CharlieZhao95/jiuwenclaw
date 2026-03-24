@@ -1405,7 +1405,7 @@ wheels = [
 
 [[package]]
 name = "jiuwenclaw"
-version = "0.1.7"
+version = "0.1.7.post1"
 source = { editable = "." }
 dependencies = [
     { name = "aiosqlite" },

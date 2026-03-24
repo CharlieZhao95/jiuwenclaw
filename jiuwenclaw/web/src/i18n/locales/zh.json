@@ -56,7 +56,13 @@
     "removeTask": "移除任务",
     "holdToSpeak": "按住说话",
     "send": "发送 (Enter)",
-    "newSessionDisabled": "处理中或录音中不可新建"
+    "newSessionDisabled": "处理中或录音中不可新建",
+    "historyPager": {
+      "loadedOfTotal": "历史已加载 {{loaded}} / {{total}} 页",
+      "loadMore": "加载更早的消息",
+      "loadingMore": "加载中…",
+      "allLoaded": "已显示全部历史"
+    }
   },
   "connection": {
     "connected": "已连接",
@@ -86,6 +92,11 @@
     "history": "历史会话",
     "count": "最多 20 条，当前 {{count}} 条",
     "empty": "暂无会话",
+    "restore": "恢复会话",
+    "restoreDisabledNotConnected": "连接断开，无法恢复会话",
+    "restoreDisabledProcessing": "助手处理中，请结束当前任务后再恢复会话",
+    "restoreDisabledUnsupported": "仅支持恢复 web 前端会话（sess_）",
+    "restoreEmpty": "该会话没有可恢复的消息（为空或均被过滤）。仍可在此继续对话。",
     "delete": "删除会话",
     "files": "会话文件",
     "selectFirst": "请先选择会话",
@@ -111,7 +122,8 @@
     "errors": {
       "loadSessions": "会话列表加载失败",
       "loadFiles": "会话文件列表加载失败",
-      "deleteSession": "删除会话失败：{{sessionId}}"
+      "deleteSession": "删除会话失败：{{sessionId}}",
+      "restoreFailed": "恢复会话失败：{{sessionId}}"
     }
   },
   "sessionSidebar": {
@@ -566,20 +578,22 @@
     "empty": "暂无文件",
     "notPreviewable": "不可预览",
     "contentPreview": "内容预览",
-    "selectMarkdown": "选择左侧 Markdown 文件查看",
-    "selectMarkdownContent": "请选择左侧 Markdown 文件查看内容",
-    "markdownOnly": "仅支持 Markdown（.md/.mdx）预览",
+    "selectMarkdown": "选择左侧可预览文件查看",
+    "selectMarkdownContent": "请选择左侧可预览文件查看内容",
+    "markdownOnly": "仅支持 Markdown/JSON（.md/.mdx/.json）预览",
     "errors": {
       "refreshFailed": "刷新失败：无法重建 agent 文件索引，请检查生成脚本日志。",
       "loadFailed": "无法读取 agent 文件列表，请检查 agent/workspace/agent-data.json 是否已生成。"
     }
   },
   "fileViewer": {
+    "chatPreview": "对话预览",
+    "historyPreviewEmpty": "按与历史恢复相同的规则过滤后，没有可展示的消息（或文件为空）。可关闭预览查看原始 JSON。",
     "edit": "编辑",
     "unknownError": "未知错误",
     "fileMissingPrefix": "文件不存在。请先在",
-    "fileMissingSuffix": "创建该 Markdown 文件后再编辑。",
-    "notPreviewable": "该文件无法预览，仅支持 Markdown（.md/.mdx）文件"
+    "fileMissingSuffix": "创建该文件后再编辑。",
+    "notPreviewable": "该文件无法预览，仅支持 Markdown/JSON（.md/.mdx/.json）文件"
   },
   "chatUi": {
     "copyMessage": "复制消息",

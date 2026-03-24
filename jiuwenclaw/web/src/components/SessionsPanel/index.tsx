@@ -6,6 +6,9 @@ import { webRequest } from '../../services/webClient';
 
 interface SessionsPanelProps {
   currentSessionId: string;
+  isConnected: boolean;
+  isProcessing: boolean;
+  onRestoreSession: (sessionId: string) => void | Promise<void>;
 }
 
 interface SessionListResponse {
@@ -117,7 +120,17 @@ function toSessionFiles(raw: unknown[]): SessionFileItem[] {
   return rows;
 }
 
-export function SessionsPanel({ currentSessionId }: SessionsPanelProps) {
+function isPreviewableSessionFile(fileName: string): boolean {
+  const lowerName = fileName.toLowerCase();
+  return lowerName.endsWith('.md') || lowerName.endsWith('.mdx') || lowerName.endsWith('.json');
+}
+
+export function SessionsPanel({
+  currentSessionId,
+  isConnected,
+  isProcessing,
+  onRestoreSession,
+}: SessionsPanelProps) {
   const { t } = useTranslation();
   const [sessions, setSessions] = useState<string[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
@@ -229,6 +242,15 @@ export function SessionsPanel({ currentSessionId }: SessionsPanelProps) {
     () => (selectedSessionId ? parseSessionDisplayLabel(selectedSessionId, t) : t('sessions.noneSelected')),
     [selectedSessionId, t]
   );
+  const canRestoreSelectedSession =
+    Boolean(selectedSessionId?.startsWith('sess_')) && isConnected && !isProcessing;
+  const restoreButtonTitle = !isConnected
+    ? t('sessions.restoreDisabledNotConnected')
+    : isProcessing
+      ? t('sessions.restoreDisabledProcessing')
+      : !selectedSessionId?.startsWith('sess_')
+        ? t('sessions.restoreDisabledUnsupported')
+        : t('sessions.restore');
 
   return (
     <div className="flex-1 min-h-0">
@@ -257,11 +279,25 @@ export function SessionsPanel({ currentSessionId }: SessionsPanelProps) {
         <div className="flex-1 min-h-0 grid grid-cols-[minmax(0,1fr)_minmax(0,4fr)] gap-4">
           <div className="rounded-xl border border-border bg-card/70 backdrop-blur-sm overflow-hidden shadow-sm flex flex-col min-h-0">
             <div className="px-4 py-3 bg-secondary/30 border-b border-border">
-              <div>
-                <h3 className="text-sm font-medium text-text">{t('sessions.history')}</h3>
-                <p className="text-xs text-text-muted mt-1 mono">
-                  {t('sessions.count', { count: sessions.length })}
-                </p>
+              <div className="flex items-stretch justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-medium text-text">{t('sessions.history')}</h3>
+                  <p className="text-xs text-text-muted mt-1 mono">
+                    {t('sessions.count', { count: sessions.length })}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  title={restoreButtonTitle}
+                  disabled={!canRestoreSelectedSession}
+                  onClick={() => {
+                    if (!selectedSessionId || !canRestoreSelectedSession) return;
+                    void onRestoreSession(selectedSessionId);
+                  }}
+                  className="btn !px-3 !py-1.5 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {t('sessions.restore')}
+                </button>
               </div>
             </div>
             <div className="flex-1 overflow-auto p-2 space-y-1">
@@ -321,7 +357,7 @@ export function SessionsPanel({ currentSessionId }: SessionsPanelProps) {
                 ) : (
                   <div className="space-y-1">
                     {files.map((file) => {
-                      const canPreview = !file.isDirectory;
+                      const canPreview = !file.isDirectory && isPreviewableSessionFile(file.name);
                       return (
                         <button
                           key={file.path}
@@ -347,7 +383,7 @@ export function SessionsPanel({ currentSessionId }: SessionsPanelProps) {
                               <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary/50 text-text-muted">
                                 {t('sessions.folder')}
                               </span>
-                            ) : !file.isMarkdown ? (
+                            ) : !canPreview ? (
                               <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary/50 text-text-muted">
                                 {t('sessions.notPreviewable')}
                               </span>

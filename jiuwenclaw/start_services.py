@@ -51,6 +51,11 @@ def _build_commands(mode: str) -> list[tuple[str, list[str], Path]]:
 
 def _start_process(name: str, cmd: list[str], cwd: Path) -> subprocess.Popen[bytes]:
     print(f"[start_services] starting {name}: {' '.join(cmd)} (cwd={cwd})")
+    # Windows: npm/npx resolve to .cmd shims; CreateProcess cannot spawn .cmd without a shell.
+    if sys.platform == "win32" and cmd:
+        first = cmd[0].lower()
+        if first in ("npm", "npx"):
+            cmd = ["cmd", "/c", *cmd]
     return subprocess.Popen(cmd, cwd=str(cwd))
 
 

@@ -12,6 +12,7 @@ class ReqMethod(Enum):
     CHAT_RESUME = "chat.resume"
     CHAT_CANCEL = "chat.interrupt"
     CHAT_ANSWER = "chat.user_answer"
+    HISTORY_GET = "history.get"
 
     CONFIG_GET = "config.get"
     CONFIG_SET = "config.set"
@@ -87,6 +88,7 @@ class EventType(Enum):
     CHAT_ASK_USER_QUESTION = "chat.ask_user_question"
     CHAT_SESSION_RESULT = "chat.session_result"
     HEARTBEAT_RELAY = "heartbeat.relay"
+    HISTORY_GET = "history.message"
 
 
 class Mode(Enum):

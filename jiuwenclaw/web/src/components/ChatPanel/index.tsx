@@ -4,7 +4,7 @@
  * 聊天面板，包含消息列表和输入区域
  */
 
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChatStore } from '../../stores';
 import { AgentMode, UserAnswer } from '../../types';
@@ -12,7 +12,15 @@ import { MessageList } from './MessageList';
 import { InputArea } from './InputArea';
 import { SubtaskProgress } from './SubtaskProgress';
 import { InlineQuestionCard } from './InlineQuestionCard';
+import { HistoryPagerBar } from './HistoryPagerBar';
 import './ChatPanel.css';
+
+export interface ChatHistoryPagerProps {
+  loadedPages: number;
+  totalPages: number;
+  loadingMore: boolean;
+  onLoadMore: () => void | Promise<void>;
+}
 
 interface ChatPanelProps {
   onSendMessage: (content: string) => void;
@@ -21,6 +29,8 @@ interface ChatPanelProps {
   isProcessing: boolean;
   onNewSession: () => void;
   onUserAnswer: (requestId: string, answers: UserAnswer[]) => void;
+  /** 自会话管理恢复历史后出现；支持分页加载更早消息 */
+  historyPager?: ChatHistoryPagerProps | null;
 }
 
 function ThinkingIndicator() {
@@ -60,18 +70,56 @@ export function ChatPanel({
   isProcessing,
   onNewSession,
   onUserAnswer,
+  historyPager = null,
 }: ChatPanelProps) {
   const { t } = useTranslation();
   const { messages, isThinking } = useChatStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prependScrollSnapRef = useRef<{ sh: number; st: number } | null>(null);
+  const wasHistoryLoadingRef = useRef(false);
+  const suppressNextScrollToEndRef = useRef(false);
   const suggestions = [
     t('chat.welcomeSuggestions.journey'),
     t('chat.welcomeSuggestions.skills'),
   ];
 
   useEffect(() => {
+    if (suppressNextScrollToEndRef.current) {
+      suppressNextScrollToEndRef.current = false;
+      return;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isThinking]);
+
+  useLayoutEffect(() => {
+    if (!historyPager) {
+      wasHistoryLoadingRef.current = false;
+      prependScrollSnapRef.current = null;
+      return;
+    }
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    if (historyPager.loadingMore) {
+      if (!wasHistoryLoadingRef.current) {
+        prependScrollSnapRef.current = { sh: el.scrollHeight, st: el.scrollTop };
+      }
+      wasHistoryLoadingRef.current = true;
+      return;
+    }
+
+    if (wasHistoryLoadingRef.current && prependScrollSnapRef.current) {
+      const snap = prependScrollSnapRef.current;
+      const delta = el.scrollHeight - snap.sh;
+      if (delta > 0) {
+        el.scrollTop = snap.st + delta;
+        suppressNextScrollToEndRef.current = true;
+      }
+      prependScrollSnapRef.current = null;
+    }
+    wasHistoryLoadingRef.current = false;
+  }, [historyPager, messages.length]);
 
   const handleSuggestion = useCallback(
     (text: string) => onSendMessage(text),
@@ -80,7 +128,15 @@ export function ChatPanel({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-3 py-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-3 py-4">
+        {historyPager && messages.length > 0 ? (
+          <HistoryPagerBar
+            loadedPages={historyPager.loadedPages}
+            totalPages={historyPager.totalPages}
+            loadingMore={historyPager.loadingMore}
+            onLoadMore={historyPager.onLoadMore}
+          />
+        ) : null}
         {messages.length === 0 ? (
           <div className="chat-welcome">
             <img src="/logo.png" alt={t('chat.welcomeLogoAlt')} className="chat-welcome__logo" />

@@ -306,6 +306,7 @@ class WebChannel(BaseChannel):
             if event_name in ("connection.ack", "todo.updated", "chat.tool_call", "chat.tool_result",
                              "chat.processing_status", "chat.interrupt_result", "chat.error", "heartbeat.relay",
                              "context.compressed", "chat.ask_user_question", "chat.subtask_update",
+                             "history.message",
                              "chat.session_result"):
                 # 传递完整 payload，保留所有字段
                 payload = {**msg.payload}

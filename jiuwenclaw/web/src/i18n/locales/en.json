@@ -56,7 +56,13 @@
     "removeTask": "Remove task",
     "holdToSpeak": "Hold to speak",
     "send": "Send (Enter)",
-    "newSessionDisabled": "Cannot create session while processing or recording"
+    "newSessionDisabled": "Cannot create session while processing or recording",
+    "historyPager": {
+      "loadedOfTotal": "History loaded {{loaded}} / {{total}} pages",
+      "loadMore": "Load older messages",
+      "loadingMore": "Loading…",
+      "allLoaded": "All history loaded"
+    }
   },
   "connection": {
     "connected": "Connected",
@@ -86,6 +92,11 @@
     "history": "Session History",
     "count": "Up to 20 items, currently {{count}}",
     "empty": "No sessions",
+    "restore": "Restore session",
+    "restoreDisabledNotConnected": "Disconnected: cannot restore session",
+    "restoreDisabledProcessing": "Assistant is busy: wait until idle to restore a session",
+    "restoreDisabledUnsupported": "Only web frontend sessions (sess_) can be restored",
+    "restoreEmpty": "This session has no restorable messages (empty or filtered). You can still chat from here.",
     "delete": "Delete session",
     "files": "Session Files",
     "selectFirst": "Select a session first",
@@ -111,7 +122,8 @@
     "errors": {
       "loadSessions": "Failed to load sessions",
       "loadFiles": "Failed to load session files",
-      "deleteSession": "Failed to delete session: {{sessionId}}"
+      "deleteSession": "Failed to delete session: {{sessionId}}",
+      "restoreFailed": "Failed to restore session: {{sessionId}}"
     }
   },
   "sessionSidebar": {
@@ -566,20 +578,22 @@
     "empty": "No files",
     "notPreviewable": "Not previewable",
     "contentPreview": "Content Preview",
-    "selectMarkdown": "Select a Markdown file on the left to view",
-    "selectMarkdownContent": "Select a Markdown file on the left to view its content",
-    "markdownOnly": "Only Markdown (.md/.mdx) preview is supported",
+    "selectMarkdown": "Select a previewable file on the left to view",
+    "selectMarkdownContent": "Select a previewable file on the left to view its content",
+    "markdownOnly": "Only Markdown/JSON (.md/.mdx/.json) preview is supported",
     "errors": {
       "refreshFailed": "Refresh failed: unable to rebuild the agent file index. Check the generator script logs.",
       "loadFailed": "Unable to read the agent file list. Check whether agent/workspace/agent-data.json has been generated."
     }
   },
   "fileViewer": {
+    "chatPreview": "Chat preview",
+    "historyPreviewEmpty": "No messages to show after the same filtering as history restore (or the file is empty). Turn off preview to see raw JSON.",
     "edit": "Edit",
     "unknownError": "Unknown error",
-    "fileMissingPrefix": "This file does not exist. Create the Markdown file at",
+    "fileMissingPrefix": "This file does not exist. Create the file at",
     "fileMissingSuffix": "before editing.",
-    "notPreviewable": "This file cannot be previewed. Only Markdown (.md/.mdx) files are supported."
+    "notPreviewable": "This file cannot be previewed. Only Markdown/JSON (.md/.mdx/.json) files are supported."
   },
   "chatUi": {
     "copyMessage": "Copy message",

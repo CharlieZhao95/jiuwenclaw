@@ -5,3 +5,4 @@
 export * from './formatters';
 export * from './env';
 export * from './tts';
+export * from './finalContent';

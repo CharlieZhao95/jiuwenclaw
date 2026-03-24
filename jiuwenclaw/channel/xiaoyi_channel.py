@@ -14,7 +14,7 @@ import os
 import ssl
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any, Callable, List, Optional
 from urllib.parse import urlparse
 
 import aiohttp
@@ -23,6 +23,30 @@ from jiuwenclaw.utils import logger
 from jiuwenclaw.channel.base import BaseChannel, ChannelMetadata, RobotMessageRouter
 from jiuwenclaw.schema.message import EventType, Message, ReqMethod
 from jiuwenclaw.channel.xiaoyi_utils.push import XiaoYiPushService, PushConfig
+from jiuwenclaw.channel.xiaoyi_utils.formatter import (
+    get_status_state_for_event,
+    get_status_text_for_event,
+    should_send_as_status_update,
+)
+
+
+# 全局 XiaoyiChannel 实例引用（供手机端工具调用使用）
+_xiaoyi_channel_instance: Optional["XiaoyiChannel"] = None
+
+
+def get_xiaoyi_channel() -> Optional["XiaoyiChannel"]:
+    """获取全局 XiaoyiChannel 实例（供手机端工具调用使用）."""
+    return _xiaoyi_channel_instance
+
+
+@dataclass
+class DataEvent:
+    """Data-only 事件数据结构（工具执行结果）."""
+    intent_name: str
+    outputs: dict
+    status: str
+    session_id: str = ""
+    task_id: str = ""
 
 
 @dataclass
@@ -209,6 +233,8 @@ class XiaoyiChannel(BaseChannel):
         self.api_id = config.api_id
         self.push_id = config.push_id
         self._accumulated_texts: dict[str, str] = {}  # Accumulated text per session for push notification
+        # Data-event 处理器：intent_name -> list of handlers
+        self._data_event_handlers: dict[str, List[Callable[[DataEvent], Any]]] = {}
 
     @property
     def channel_id(self) -> str:
@@ -234,6 +260,11 @@ class XiaoyiChannel(BaseChannel):
                 return
 
         self._running = True
+        # 注册全局实例（供 tools 使用）
+        global _xiaoyi_channel_instance
+        _xiaoyi_channel_instance = self
+        logger.info("XiaoyiChannel 已注册为全局实例")
+
         # Start dual channel connections
         for url_key, url in [("ws_url1", self.config.ws_url1), ("ws_url2", self.config.ws_url2)]:
             if url:
@@ -241,7 +272,13 @@ class XiaoyiChannel(BaseChannel):
         logger.info("XiaoyiChannel 已启动（客户端模式，双通道）")
 
     async def stop(self) -> None:
+        global _xiaoyi_channel_instance
+
         self._running = False
+        # 注销全局实例
+        if _xiaoyi_channel_instance is self:
+            _xiaoyi_channel_instance = None
+            logger.info("XiaoyiChannel 已注销全局实例")
         # Cancel all heartbeat tasks
         for url_key in list(self._heartbeat_tasks.keys()):
             if self._heartbeat_tasks[url_key]:
@@ -332,6 +369,15 @@ class XiaoyiChannel(BaseChannel):
                                 await self._send_file_response(session_id, task_id, file_info, url_key)
                             except Exception as e:
                                 logger.warning(f"XiaoyiChannel 发送文件响应失败 ({url_key}): {e}")
+            return
+
+        if should_send_as_status_update(msg.event_type):
+            status_text = get_status_text_for_event(msg.event_type, msg.payload)
+            status_state = get_status_state_for_event(msg.event_type, msg.payload)
+            for url_key in list(self._ws_connections.keys()):
+                await self._send_status_update_with_state(
+                    task_id, session_id, status_text, status_state, url_key
+                )
             return
 
         content = ""
@@ -535,7 +581,21 @@ class XiaoyiChannel(BaseChannel):
             return
 
         msg_type = message.get("msgType")
+        method = message.get("method")
+
+        # 添加详细日志用于诊断工具消息
+        if method or (msg_type and msg_type != "heartbeat"):
+            logger.info(f"[XiaoyiChannel] _handle_raw_message: msg_type={msg_type},"
+                        f"method={method}, sessionId={message.get('sessionId', 'N/A')}")
+
         if msg_type == "heartbeat":
+            return
+
+        # 检查是否是 data-only 消息（工具执行结果）
+        data_event = self._extract_data_event(message)
+        if data_event:
+            logger.info(f"XiaoyiChannel 收到 data-event: {data_event.intent_name}, status={data_event.status}")
+            await self._handle_data_event(data_event)
             return
 
         method = message.get("method")
@@ -679,7 +739,7 @@ class XiaoyiChannel(BaseChannel):
                 logger.info(f"[TASK TIMEOUT] 1-hour timeout triggered for session {session_id}")
                 # Send default message with is_final=true
                 for url_key in list(self._ws_connections.keys()):
-                    await self._send_text_response(session_id, task_id, "任务还在处理中，完成后将提醒您~", url_key, is_final=True)
+                    await self._send_text_response(session_id, task_id, "任务还在处理中~", url_key, is_final=True)
                 # Mark session as waiting for push state
                 self._mark_session_waiting_for_push(session_id, task_id)
             except asyncio.CancelledError:
@@ -697,7 +757,7 @@ class XiaoyiChannel(BaseChannel):
                     if self._is_session_waiting_for_push(session_id, task_id):
                         break
                     # Send status update
-                    await self._send_status_update(task_id, session_id, "任务正在处理中，请稍后")
+                    await self._send_status_update(task_id, session_id, "任务正在处理中，请稍后~")
             except asyncio.CancelledError:
                 pass
 
@@ -782,6 +842,28 @@ class XiaoyiChannel(BaseChannel):
         # Send to all active connections
         for url_key in list(self._ws_connections.keys()):
             await self._send_agent_response(session_id, task_id, response, url_key)
+
+    async def _send_status_update_with_state(
+        self, task_id: str, session_id: str, message: str, state: str, url_key: str
+    ) -> None:
+        """发送状态更新消息（A2A 格式），支持自定义状态."""
+        response = {
+            "jsonrpc": "2.0",
+            "id": f"msg_{int(time.time() * 1000)}",
+            "result": {
+                "taskId": task_id,
+                "kind": "status-update",
+                "final": False,
+                "status": {
+                    "message": {
+                        "role": "agent",
+                        "parts": [{"kind": "text", "text": message}],
+                    },
+                    "state": state,
+                },
+            },
+        }
+        await self._send_agent_response(session_id, task_id, response, url_key)
 
     def _is_session_active(self, session_id: str) -> bool:
         """检查会话是否有活跃任务."""
@@ -1046,3 +1128,203 @@ class XiaoyiChannel(BaseChannel):
         except Exception as e:
             logger.error(f"[PUSH] Error sending push: {e}")
             return False
+
+    async def send_xiaoyi_phone_tools_command(
+        self,
+        session_id: str,
+        task_id: str,
+        message_id: str,
+        command: dict[str, Any],
+    ) -> bool:
+        """发送 Command 指令到手机端（A2A artifact-update 格式）.
+
+        Args:
+            session_id: 会话 ID
+            task_id: 任务 ID
+            message_id: 消息 ID（用于 JSON-RPC id）
+            command: Command 数据结构，包含 header 和 payload
+
+        Returns:
+            是否发送成功
+        """
+        # 构建 A2A artifact-update 响应
+        response = {
+            "jsonrpc": "2.0",
+            "id": message_id,
+            "result": {
+                "taskId": task_id,
+                "kind": "artifact-update",
+                "append": False,
+                "lastChunk": False,
+                "final": False,
+                "artifact": {
+                    "artifactId": f"artifact_{int(time.time() * 1000)}",
+                    "parts": [{"kind": "data", "data": {"commands": [command]}}],
+                },
+            },
+        }
+
+        # 构建 WebSocket 包装消息
+        wrapper = {
+            "msgType": "agent_response",
+            "agentId": self.config.agent_id,
+            "sessionId": session_id,
+            "taskId": task_id,
+            "msgDetail": json.dumps(response),
+        }
+
+        # 发送到所有活跃连接
+        sent = False
+        for url_key, ws in self._ws_connections.items():
+            if ws:
+                try:
+                    await self._safe_ws_send(url_key, wrapper)
+                    logger.info(f"XiaoyiChannel 发送 command 成功 ({url_key}):intent={command.get('payload', {})
+                                .get('executeParam', {}).get('intentName', 'unknown')}")
+                    sent = True
+                except Exception as e:
+                    logger.warning(f"XiaoyiChannel 发送 command 失败 ({url_key}): {e}")
+
+        return sent
+
+    def register_data_event_handler(
+        self, intent_name: str, handler: Callable[[DataEvent], Any]
+    ) -> None:
+        """注册 data-event 处理器.
+
+        Args:
+            intent_name: 要监听的 intent 名称（如 "GetCurrentLocation"）
+            handler: 处理函数，接收 DataEvent 参数
+        """
+        if intent_name not in self._data_event_handlers:
+            self._data_event_handlers[intent_name] = []
+        if handler not in self._data_event_handlers[intent_name]:
+            self._data_event_handlers[intent_name].append(handler)
+            logger.info(f"XiaoyiChannel 注册 data-event 处理器: {intent_name}")
+
+    def unregister_data_event_handler(
+        self, intent_name: str, handler: Callable[[DataEvent], Any]
+    ) -> None:
+        """注销 data-event 处理器.
+
+        Args:
+            intent_name: intent 名称
+            handler: 要移除的处理函数
+        """
+        if intent_name in self._data_event_handlers:
+            try:
+                self._data_event_handlers[intent_name].remove(handler)
+                logger.info(f"XiaoyiChannel 注销 data-event 处理器: {intent_name}")
+            except ValueError:
+                pass
+
+    async def _handle_data_event(self, event: DataEvent) -> None:
+        """分发 data-event 到注册的处理器."""
+        logger.info(f"[XiaoyiChannel] 分发 data-event: intent={event.intent_name}, status={event.status}")
+        logger.debug(f"[XiaoyiChannel] 已注册处理器: {list(self._data_event_handlers.keys())}")
+
+        handlers = self._data_event_handlers.get(event.intent_name, [])
+        if not handlers:
+            logger.warning(f"[XiaoyiChannel] 无处理器处理 data-event: {event.intent_name}")
+            return
+
+        logger.info(f"[XiaoyiChannel] 找到 {len(handlers)} 个处理器 for {event.intent_name}")
+
+        for handler in handlers:
+            try:
+                if asyncio.iscoroutinefunction(handler):
+                    await handler(event)
+                else:
+                    handler(event)
+            except Exception as e:
+                logger.warning(f"XiaoyiChannel data-event 处理器异常 ({event.intent_name}): {e}")
+
+    def _extract_data_event(self, message: dict[str, Any]) -> DataEvent | None:
+        """从 A2A 消息中提取 data-event（如果是 data-only 消息）.
+
+        支持三种消息格式：
+        1. Direct A2A format: 直接包含 params.message.parts
+        2. Wrapped format (msgType="data"): A2A 内容在 msgDetail 中
+        3. UploadExeResult 格式: header.name="UploadExeResult" + payload.intentName + payload.outputs
+
+        Args:
+            message: 解析后的 A2A 消息
+
+        Returns:
+            DataEvent 或 None（如果不是 data-only 消息）
+        """
+        # 检查是否是 Wrapped format (msgType="data")
+        # 参考 xy_channel websocket.ts:569-606
+        msg_type = message.get("msgType")
+        method = message.get("method")
+        logger.debug(f"[XiaoyiChannel] _extract_data_event: msg_type={msg_type}, method={method}")
+        if msg_type == "data":
+            try:
+                # 从 msgDetail 解析 A2A JSON-RPC 请求
+                a2a_request = json.loads(message.get("msgDetail", "{}"))
+                params = a2a_request.get("params", {})
+                msg = params.get("message", {})
+                parts = msg.get("parts", [])
+                session_id = message.get("sessionId", "")
+            except (json.JSONDecodeError, KeyError):
+                return None
+        else:
+            # Direct A2A format
+            params = message.get("params", {})
+            msg = params.get("message", {})
+            parts = msg.get("parts", [])
+            session_id = message.get("sessionId", "")
+
+        if not parts:
+            logger.debug(f"[XiaoyiChannel] _extract_data_event: no parts found")
+            return None
+
+        # 检查是否所有 parts 都是 data 类型
+        data_parts = [p for p in parts if p.get("kind") == "data"]
+        if not data_parts or len(data_parts) != len(parts):
+            logger.debug(f"[XiaoyiChannel] _extract_data_event: not all parts are data kind ")
+            return None
+
+        # 提取 data 内容
+        for part in data_parts:
+            data = part.get("data", {})
+            events = data.get("events", [])
+            if not isinstance(events, list):
+                continue
+
+            for event in events:
+                intent_name = ""
+                outputs = {}
+                status = "success"  # 默认为 success（与 xy_channel 一致）
+
+                # 格式 1: 直接格式 (events[].intentName)
+                if event.get("intentName"):
+                    intent_name = event.get("intentName", "")
+                    outputs = event.get("outputs", {})
+                    status = event.get("status", "success")
+
+                # 格式 2: UploadExeResult 包装格式 (header.name + payload)
+                elif event.get("header", {}).get("name") == "UploadExeResult":
+                    payload = event.get("payload", {})
+                    intent_name = payload.get("intentName", "")
+                    outputs = payload.get("outputs", {})
+                    # UploadExeResult 格式默认 status 为 success
+                    status = payload.get("status", "success") or "success"
+
+                # 格式 3: InvokeJarvisGUIAgentResponse（GUI 工具响应，跳过）
+                elif event.get("header", {}).get("namespace") == "ClawAgent" and \
+                     event.get("header", {}).get("name") == "InvokeJarvisGUIAgentResponse":
+                    # GUI 响应不处理，继续检查下一个 event
+                    continue
+
+                if intent_name:
+                    logger.info(f"[XiaoyiChannel] Extracted data-event: intent={intent_name}, status={status}, outputs_keys={list(outputs.keys())}")
+                    return DataEvent(
+                        intent_name=intent_name,
+                        outputs=outputs,
+                        status=status,
+                        session_id=message.get("sessionId", ""),
+                        task_id=params.get("id", ""),
+                    )
+
+        return None

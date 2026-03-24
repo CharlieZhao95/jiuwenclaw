@@ -6,10 +6,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, ClassVar
 
-from jiuwenclaw.utils import logger
+from jiuwenclaw.utils import get_agent_sessions_dir, logger
 from jiuwenclaw.schema.agent import AgentRequest, AgentResponse, AgentResponseChunk
 
 
@@ -227,6 +229,14 @@ class AgentWebSocketServer:
         )
 
         try:
+            from jiuwenclaw.schema.message import ReqMethod
+
+            if request.req_method == ReqMethod.HISTORY_GET:
+                if request.is_stream:
+                    await self._handle_history_get_stream(ws, request, send_lock)
+                else:
+                    await self._handle_history_get(ws, request, send_lock)
+                return
             if request.is_stream:
                 await self._handle_stream(ws, request, send_lock)
             else:
@@ -273,6 +283,80 @@ class AgentWebSocketServer:
             chunk_count,
         )
 
+    async def _handle_history_get(self, ws: Any, request: AgentRequest, send_lock: asyncio.Lock) -> None:
+        params = request.params if isinstance(request.params, dict) else {}
+        session_id = params.get("session_id")
+        page_idx = params.get("page_idx")
+        data = self.get_conversation_history(session_id=session_id, page_idx=page_idx)
+        if data is None:
+            resp = AgentResponse(
+                request_id=request.request_id,
+                channel_id=request.channel_id,
+                ok=False,
+                payload={"error": "invalid page_idx or session history not found"},
+            )
+        else:
+            resp = AgentResponse(
+                request_id=request.request_id,
+                channel_id=request.channel_id,
+                ok=True,
+                payload=data,
+            )
+        async with send_lock:
+            await ws.send(json.dumps(_response_to_payload(resp), ensure_ascii=False))
+
+    async def _handle_history_get_stream(self, ws: Any, request: AgentRequest, send_lock: asyncio.Lock) -> None:
+        params = request.params if isinstance(request.params, dict) else {}
+        session_id = params.get("session_id")
+        page_idx = params.get("page_idx")
+        data = self.get_conversation_history(session_id=session_id, page_idx=page_idx)
+        if data is None:
+            err_chunk = AgentResponseChunk(
+                request_id=request.request_id,
+                channel_id=request.channel_id,
+                payload={
+                    "event_type": "chat.error",
+                    "error": "invalid page_idx or session history not found",
+                },
+                is_complete=True,
+            )
+            async with send_lock:
+                await ws.send(json.dumps(_chunk_to_payload(err_chunk), ensure_ascii=False))
+            return
+
+        messages = data.get("messages", [])
+        total_pages = data.get("total_pages")
+        page = data.get("page_idx")
+        if isinstance(messages, list):
+            for item in messages:
+                chunk = AgentResponseChunk(
+                    request_id=request.request_id,
+                    channel_id=request.channel_id,
+                    payload={
+                        "event_type": "history.message",
+                        "message": item,
+                        "total_pages": total_pages,
+                        "page_idx": page,
+                    },
+                    is_complete=False,
+                )
+                async with send_lock:
+                    await ws.send(json.dumps(_chunk_to_payload(chunk), ensure_ascii=False))
+
+        done_chunk = AgentResponseChunk(
+            request_id=request.request_id,
+            channel_id=request.channel_id,
+            payload={
+                "event_type": "history.message",
+                "status": "done",
+                "total_pages": total_pages,
+                "page_idx": page,
+            },
+            is_complete=True,
+        )
+        async with send_lock:
+            await ws.send(json.dumps(_chunk_to_payload(done_chunk), ensure_ascii=False))
+
     async def send_push(self, msg) -> None:
         """AgentServer 主动向 Gateway 推送消息。
 
@@ -297,3 +381,36 @@ class AgentWebSocketServer:
 
     def get_agent(self):
         return getattr(self._agent, "_instance", None)
+    
+    @staticmethod
+    def get_conversation_history(session_id: str, page_idx: int) -> dict[str, Any] | None:
+        # 按照 session_id 和分页消息获取历史记录
+        if not isinstance(session_id, str) or not session_id.strip():
+            return None
+        if not isinstance(page_idx, int) or page_idx <= 0:
+            return None
+
+        history_path: Path = get_agent_sessions_dir() / session_id.strip() / "history.json"
+        if not history_path.exists():
+            return None
+        try:
+            raw = json.loads(history_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        if not isinstance(raw, list):
+            return None
+
+        page_size = 50
+        total = len(raw)
+        total_pages = max(1, math.ceil(total / page_size))
+        if page_idx > total_pages:
+            return None
+
+        ordered = list(reversed(raw))
+        start = (page_idx - 1) * page_size
+        end = start + page_size
+        return {
+            "messages": ordered[start:end],
+            "total_pages": total_pages,
+            "page_idx": page_idx,
+        }

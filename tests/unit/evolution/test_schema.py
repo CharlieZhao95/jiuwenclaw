@@ -11,6 +11,7 @@ from jiuwenclaw.evolution.schema import (
     EvolutionFile,
     EvolutionSignal,
     VALID_SECTIONS,
+    ExperienceTarget,
 )
 
 
@@ -44,7 +45,6 @@ class TestEvolutionChange:
         assert change.section == "Instructions"
         assert change.action == "append"
         assert change.content == "Test content"
-        assert change.relevant is True
         assert change.merge_target is None
 
     @staticmethod
@@ -54,7 +54,8 @@ class TestEvolutionChange:
             section="Troubleshooting",
             action="append",
             content="Fix: Check configuration",
-            relevant=True,
+            target=ExperienceTarget.BODY,
+            skip_reason="duplicate",
             merge_target="entry_123",
         )
         result = change.to_dict()
@@ -62,7 +63,8 @@ class TestEvolutionChange:
             "section": "Troubleshooting",
             "action": "append",
             "content": "Fix: Check configuration",
-            "relevant": True,
+            "target": "body",
+            "skip_reason": "duplicate",
             "merge_target": "entry_123",
         }
 
@@ -73,14 +75,12 @@ class TestEvolutionChange:
             "section": "Examples",
             "action": "append",
             "content": "Example content",
-            "relevant": False,
             "merge_target": "entry_456",
         }
         change = EvolutionChange.from_dict(data)
         assert change.section == "Examples"
         assert change.action == "append"
         assert change.content == "Example content"
-        assert change.relevant is False
         assert change.merge_target == "entry_456"
 
     @staticmethod
@@ -91,7 +91,6 @@ class TestEvolutionChange:
         assert change.section == "Troubleshooting"
         assert change.action == "append"
         assert change.content == "Test content"
-        assert change.relevant is True
         assert change.merge_target is None
 
     @staticmethod
@@ -180,7 +179,6 @@ class TestEvolutionEntry:
                 "section": "Instructions",
                 "action": "append",
                 "content": "New instruction",
-                "relevant": True,
             },
             "applied": True,
         }
@@ -310,7 +308,6 @@ class TestEvolutionFile:
                         "section": "Instructions",
                         "action": "append",
                         "content": "Test content",
-                        "relevant": True,
                     },
                     "applied": False,
                 }

@@ -138,6 +138,10 @@ def _memory_prompt(language: str, is_cron: bool = False) -> str:
 
 当用户请求记录信息时（如"帮我记一下"、"记住这个"），调用 `write_memory`使用append=true 参数来追加内容到`memory/YYYY-MM-DD.md`，每条记录单独一行。
 
+**任务记忆两步流程（每轮对话均须执行）：**
+- 开始前：调用 `experience_retrieve` 检索相关历史经验
+- 输出回复前：调用 `experience_learn` 存储本次关键发现并自动提炼记忆
+
 #### 操作轨迹自动记录（写入会话日志）
 
 **每次文件操作后，必须调用 `write_memory` 使用append=true 参数来追加记录至`memory/YYYY-MM-DD.md`**，每条记录单独一行，但是在回复用户时不需要提到进行了记录。
@@ -160,11 +164,18 @@ def _memory_prompt(language: str, is_cron: bool = False) -> str:
 
 #### 历史检索机制
 
-**响应任何消息前，建议执行：**
-1. 读取 `USER.md` — 确认服务对象
-2. 读取 `memory/YYYY-MM-DD.md`（当日 + 前一日）获取上下文
-3. **仅限主会话：** 读取 `MEMORY.md`
-4. **回答历史事件相关问题前：** 必须先调用 `memory_search` 工具检索历史记忆
+**响应任何消息前，必须执行：**
+1. 调用 `experience_retrieve` — 从任务记忆库检索与当前问题相关的历史经验（**每条消息必须执行**）
+2. 读取 `USER.md` — 确认服务对象
+3. 读取 `memory/YYYY-MM-DD.md`（当日 + 前一日）获取上下文
+4. **仅限主会话：** 读取 `MEMORY.md`
+5. **回答历史事件相关问题前：** 必须先调用 `memory_search` 工具检索历史记忆
+
+#### 任务记忆工作流（在给出最终回复之前执行）
+
+在输出最终回复文本之前，**必须先调用以下工具**（不要告知用户）：
+1. 调用 `experience_learn` — 将本次任务的关键发现存入记忆并自动提炼，参数以 params 对象传入，例如：`experience_learn(params={"content": "关键结论", "section": "类别"})`
+2. 完成后，再输出最终文字回复
 """
         sections.append(memory_prompt)
         sections.append("")
@@ -231,6 +242,10 @@ When the user explicitly expresses identity information (e.g., "I am...", "My na
 
 When the user requests to record information (e.g., "help me remember this", "remember this"), call `write_memory` with append=true to append content to `memory/YYYY-MM-DD.md`, with each record on a separate line.
 
+**Mandatory 2-step task memory workflow (every conversation turn):**
+- Before: call `experience_retrieve` to check for relevant past experience
+- Before final reply: call `experience_learn` to store the key finding and consolidate memory
+
 ### Operation Trail Automatic Recording (Write to Session Log)
 
 **After each file operation, you must call `write_memory` with append=true to append the record to `memory/YYYY-MM-DD.md`**, with each record on a separate line, but you do not need to mention this when replying to the user.
@@ -253,11 +268,18 @@ When valuable information is discovered during the conversation, it can be recor
 
 #### History Retrieval Mechanism
 
-**Before responding to any message, it is recommended to execute:**
-1. Read `USER.md` — Confirm the user being served
-2. Read `memory/YYYY-MM-DD.md` (today + previous day) to get context
-3. **Main session only:** Read `MEMORY.md`
-4. **Before answering questions about historical events:** Must first call `memory_search` tool to retrieve historical memories
+**Before responding to any message, you MUST execute:**
+1. Call `experience_retrieve` — retrieve relevant past task experience for the current question (**required for every message**)
+2. Read `USER.md` — Confirm the user being served
+3. Read `memory/YYYY-MM-DD.md` (today + previous day) to get context
+4. **Main session only:** Read `MEMORY.md`
+5. **Before answering questions about historical events:** Must first call `memory_search` tool to retrieve historical memories
+
+#### Task Memory Workflow (run BEFORE giving the final reply)
+
+Before outputting your final text reply, **you must silently execute this tool call** (do not mention this to the user):
+1. Call `experience_learn` — store the key finding and consolidate memory; pass all fields inside a `params` object, e.g. `experience_learn(params={"content": "key finding", "section": "category"})`
+2. Only after this step completes, output your final text reply
 """
         sections.append(memory_prompt)
         sections.append("")
@@ -350,6 +372,9 @@ def _tool_prompt(mode, language: str) -> str:
 | `read_memory` | 读取记忆文件 |
 | `write_memory` | 写入或追加记忆 |
 | `edit_memory` | 精确编辑记忆内容 |
+| `experience_retrieve` | 从任务记忆库中检索与当前任务相关的历史经验（跨会话） |
+| `experience_learn` | 记录关键发现并自动将任务条目提炼为可复用记忆 |
+| `experience_clear` | 清空 task-data.json 中存储的所有任务记忆 |
 
 ### 定时任务
 
@@ -433,6 +458,9 @@ Tools are built-in methods.
 | `read_memory` | Read a memory file |
 | `write_memory` | Write or append to memory |
 | `edit_memory` | Edit memory content precisely |
+| `experience_retrieve` | Retrieve relevant past task memories and lessons (cross-session) |
+| `experience_learn` | Record a key finding and consolidate task entries into reusable memory |
+| `experience_clear` | Wipe all stored task memory from task-data.json |
 
 ### Scheduled Tasks
 

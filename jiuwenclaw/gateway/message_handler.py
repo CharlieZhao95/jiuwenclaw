@@ -72,7 +72,6 @@ class MessageHandler(ABC):
         self._get_config_raw = get_config_raw
         self._update_channel_in_config = update_channel_in_config
 
-        self._load_channel_states_from_config()
 
     @classmethod
     def get_instance(cls, agent_client: "AgentServerClient | None" = None) -> "MessageHandler":
@@ -99,41 +98,67 @@ class MessageHandler(ABC):
 
     # ---------- Channel 控制状态：\new_session / \mode ----------
 
-    def _load_channel_states_from_config(self) -> None:
-        """从 config.yaml 初始化各 Channel 的默认 session_id / mode."""
+    def _get_channel_default_state(self, channel_id: str) -> ChannelControlState:
+        """从 config.yaml 读取 Channel 的默认 session_id / mode."""
         try:
             cfg: Dict[str, Any] = self._get_config_raw()
         except Exception:  # noqa: BLE001
             cfg = {}
         channels_cfg = cfg.get("channels") or {}
-        for ch in self._control_channels:
-            ch_cfg = channels_cfg.get(ch) or {}
-            sid_raw = ch_cfg.get("default_session_id") or ""
-            sid = str(sid_raw).strip() or None
-            # 若未在 config 中指定默认 session_id，则为该 channel 生成一个带时间戳的新 session_id，
-            # 这样 feishu/xiaoyi/dingtalk/whatsapp 在未执行 \new_session 之前，消息的 session_id 也是
-            # `<channel>_<ts_hex>_<rand>` 这种可解析时间戳的格式。
-            if not sid:
-                sid = self._generate_channel_session_id(ch)
-            mode_raw = str(ch_cfg.get("default_mode") or "plan").strip().lower()
-            mode = ChannelMode.AGENT if mode_raw == "agent" else ChannelMode.PLAN
-            self._channel_states[ch] = ChannelControlState(session_id=sid, mode=mode)
+        ch_cfg = channels_cfg.get(channel_id) or {}
+        sid_raw = ch_cfg.get("default_session_id") or ""
+        sid = str(sid_raw).strip() or None
+        # 若未在 config 中指定默认 session_id，为该 channel 生成一个带时间戳的新 session_id
+        if not sid:
+            sid = self._generate_channel_session_id(channel_id)
+        mode_raw = str(ch_cfg.get("default_mode") or "plan").strip().lower()
+        mode = ChannelMode.AGENT if mode_raw == "agent" else ChannelMode.PLAN
+        return ChannelControlState(session_id=sid, mode=mode)
+
+    def _get_channel_state_key(self, channel_id: str, conversation_id: str | None) -> str:
+        """生成 channel 状态的复合键：channel_id:conversation_id."""
+        if conversation_id:
+            return f"{channel_id}:{conversation_id}"
+        return channel_id
+
+    def _get_or_create_channel_state(self, msg: "Message") -> ChannelControlState:
+        """获取或创建消息对应 channel 状态（使用复合键）。
+
+        conversation_id 从 msg.metadata 获取，如 feishu 的 feishu_chat_id。
+        """
+        ch = msg.channel_id
+        # 获取 conversation_id：从不同平台的 metadata 中提取会话标识
+        # feishu: feishu_chat_id, xiaoyi: xiaoyi_session_id, 其他用 session_id
+        key = self._get_channel_state_key(ch, msg.session_id)
+
+        # 如果状态已存在，直接返回
+        state = self._channel_states.get(key)
+        if state is not None:
+            return state
+
+        # 否则从 config 加载默认值，并缓存
+        state = self._get_channel_default_state(ch)
+        self._channel_states[key] = state
+        return state
 
     def _save_channel_state_to_config(self, channel_id: str) -> None:
-        """将指定 Channel 的 session_id / mode 写回 config.yaml."""
-        state = self._channel_states.get(channel_id)
-        if state is None:
-            return
+        """将指定 Channel 的默认 session_id / mode 写回 config.yaml.
+
+        注意：仅更新默认值，不保存每个会话的状态。
+        """
         try:
-            self._update_channel_in_config(
-                channel_id,
-                {
-                    "default_session_id": state.session_id or "",
-                    "default_mode": state.mode.value,
-                },
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("保存 Channel 控制状态到 config 失败: %s", exc)
+            cfg: Dict[str, Any] = self._get_config_raw()
+        except Exception:  # noqa: BLE001
+            cfg = {}
+        channels_cfg = cfg.get("channels") or {}
+        ch_cfg = channels_cfg.get(channel_id) or {}
+        self._update_channel_in_config(
+            channel_id,
+            {
+                "default_session_id": ch_cfg.get("default_session_id") or "",
+                "default_mode": ch_cfg.get("default_mode") or "plan",
+            },
+        )
 
     def _generate_channel_session_id(self, channel_id: str) -> str:
         """为指定 channel 生成新的 session_id."""
@@ -175,13 +200,14 @@ class MessageHandler(ABC):
             return False
 
         logger.info('this is in _handle_channel_control, channel id is %s, text is %s, "\\new_session" in text is %s', ch, text, str("\\new_session" in text))
-        # \new_session：重置当前 Channel 的会话 ID
+
+        # 获取当前会话的状态（使用复合键）
+        state = self._get_or_create_channel_state(msg)
+
+        # \new_session：重置当前会话的 session_id
         if "/new_session" == text:
-            state = self._channel_states.get(ch) or ChannelControlState()
             new_sid = self._generate_channel_session_id(ch)
             state.session_id = new_sid
-            self._channel_states[ch] = state
-            self._save_channel_state_to_config(ch)
             # 给当前会话回复提示（用原有 session_id）
             asyncio.create_task(
                 self._send_channel_notice(ch, msg.session_id, f"[收到 CLI 指令], session_id 已变更为 {new_sid}")
@@ -194,13 +220,10 @@ class MessageHandler(ABC):
             return True
 
         # \mode plan / \mode agent
-        if text == "/mode plan" or text == "/mode agent": 
+        if text == "/mode plan" or text == "/mode agent":
             parts = text.split()
             if len(parts) >= 2 and parts[1] in ("plan", "agent"):
-                state = self._channel_states.get(ch) or ChannelControlState()
                 state.mode = ChannelMode.AGENT if parts[1] == "agent" else ChannelMode.PLAN
-                self._channel_states[ch] = state
-                self._save_channel_state_to_config(ch)
                 asyncio.create_task(
                     self._send_channel_notice(ch, msg.session_id, f"[收到 CLI 指令], mode 已变更为 {state.mode.value}")
                 )
@@ -216,12 +239,13 @@ class MessageHandler(ABC):
     def _apply_channel_state(self, msg: "Message") -> None:
         """将当前 Channel 的控制状态应用到消息上（session_id / mode）."""
         ch = msg.channel_id
-        state = self._channel_states.get(ch)
-        if not state:
+        if ch not in self._control_channels:
             return
 
+        state = self._get_or_create_channel_state(msg)
+
         # 对 feishu/xiaoyi/dingtalk/whatsapp 强制覆盖 session_id；web 等保持原有行为
-        if ch in self._control_channels and state.session_id:
+        if state.session_id:
             msg.session_id = state.session_id
 
         # 将 mode 写入 params，后续 AgentRequest 会从 params["mode"] 里读取

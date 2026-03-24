@@ -34,7 +34,7 @@ interface TreeData {
   >;
   directoryCount: number;
   totalFileCount: number;
-  markdownFileCount: number;
+  previewableFileCount: number;
 }
 
 const compareByName = (a: string, b: string) => a.localeCompare(b, 'zh-Hans-CN');
@@ -49,6 +49,11 @@ const isSkillFolder = (folderKey: string) =>
   folderKey === 'skills' || folderKey.startsWith('skills/');
 
 const normalizeFolderKey = (folderKey: string) => (folderKey ? folderKey : ROOT_FOLDER_KEY);
+
+const isPreviewableFile = (fileName: string) => {
+  const lowerName = fileName.toLowerCase();
+  return lowerName.endsWith('.md') || lowerName.endsWith('.mdx') || lowerName.endsWith('.json');
+};
 
 const getParentFolderKey = (folderKey: string) => {
   if (folderKey === ROOT_FOLDER_KEY) return null;
@@ -159,7 +164,7 @@ const buildTreeData = (data: Record<string, FileInfo[]>, t: (key: string) => str
     rootEntries,
     directoryCount: Math.max(directoryMap.size - 1, 0),
     totalFileCount: allFiles.length,
-    markdownFileCount: allFiles.filter((file) => file.isMarkdown).length,
+    previewableFileCount: allFiles.filter((file) => isPreviewableFile(file.name)).length,
   };
 };
 
@@ -266,7 +271,7 @@ export function AgentPanel({ sessionId: _sessionId }: AgentPanelProps) {
   };
 
   const handleFileClick = (file: FileInfo) => {
-    if (!file.isMarkdown) {
+    if (!isPreviewableFile(file.name)) {
       return;
     }
     const folderKey = getFolderKeyByFilePath(file.path);
@@ -329,7 +334,7 @@ export function AgentPanel({ sessionId: _sessionId }: AgentPanelProps) {
           <div>
             {node.childDirectoryKeys.map((childKey) => renderTree(childKey, depth + 1))}
             {node.files.map((file) => {
-              const selectable = file.isMarkdown;
+              const selectable = isPreviewableFile(file.name);
               const selected = selectedFile?.path === file.path;
               return (
                 <button
@@ -356,7 +361,7 @@ export function AgentPanel({ sessionId: _sessionId }: AgentPanelProps) {
                     )}
                   </svg>
                   <span className="flex-1 min-w-0 truncate">{file.name}</span>
-                  {!file.isMarkdown ? (
+                  {!selectable ? (
                     <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary/40">
                       {t('agent.notPreviewable')}
                     </span>
@@ -387,7 +392,7 @@ export function AgentPanel({ sessionId: _sessionId }: AgentPanelProps) {
                 {t('agent.fileCount', { count: treeData.totalFileCount })}
               </span>
               <span className="mono px-2.5 py-1 rounded-full border border-border bg-secondary/60">
-                {t('agent.previewableCount', { count: treeData.markdownFileCount })}
+                {t('agent.previewableCount', { count: treeData.previewableFileCount })}
               </span>
             </div>
           </div>
@@ -430,7 +435,7 @@ export function AgentPanel({ sessionId: _sessionId }: AgentPanelProps) {
                       return renderTree(entry.key, 0);
                     }
                     const file = entry.file;
-                    const selectable = file.isMarkdown;
+                    const selectable = isPreviewableFile(file.name);
                     const selected = selectedFile?.path === file.path;
                     return (
                       <button
@@ -455,7 +460,7 @@ export function AgentPanel({ sessionId: _sessionId }: AgentPanelProps) {
                           )}
                         </svg>
                         <span className="flex-1 min-w-0 truncate">{file.name}</span>
-                        {!file.isMarkdown ? (
+                        {!selectable ? (
                           <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-secondary/40">
                             {t('agent.notPreviewable')}
                           </span>

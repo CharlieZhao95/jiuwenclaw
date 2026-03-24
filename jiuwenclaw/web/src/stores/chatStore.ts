@@ -79,12 +79,14 @@ interface ChatState {
   setThinking: (status: boolean) => void;
   setPaused: (paused: boolean, task?: string | null) => void;
   setInterruptResult: (result: InterruptResultPayload | null) => void;
-  addToolCall: (toolCall: ToolCall) => void;
-  addToolResult: (toolResult: ToolResult) => void;
+  addToolCall: (toolCall: ToolCall, options?: { startedAt?: string }) => void;
+  addToolResult: (toolResult: ToolResult, options?: { updatedAt?: string }) => void;
   markTimedOutExecutions: () => void;
   updateSubtask: (payload: SubtaskUpdatePayload) => void;
   clearSubtasks: () => void;
   clearMessages: () => void;
+  /** 在列表头部插入更早的历史消息（数组内建议时间升序） */
+  prependMessages: (olderFirst: Message[]) => void;
   // 任务队列相关
   addToTaskQueue: (content: string) => void;
   clearTaskQueue: () => void;
@@ -196,7 +198,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  addToolCall: (toolCall) => {
+  addToolCall: (toolCall, options) => {
     set((state) => {
       if (!toolCall.id) {
         const nextDropped = state.toolMetrics.toolCallDedupDropped + 1;
@@ -231,21 +233,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
       }
       const nowIso = new Date().toISOString();
+      const startedAt =
+        typeof options?.startedAt === 'string' && options.startedAt.trim()
+          ? options.startedAt.trim()
+          : nowIso;
       const orphanResult = state.orphanResults.get(toolCall.id);
       const nextExecutions = new Map(state.toolExecutions);
       const nextOrphanResults = new Map(state.orphanResults);
       if (orphanResult) {
         nextOrphanResults.delete(toolCall.id);
       }
-      const timeoutAt = computeTimeoutAt(nowIso);
+      const timeoutAt = computeTimeoutAt(startedAt);
       const resultStatus = orphanResult ? resolveExecutionStatus(orphanResult) : 'pending';
       nextExecutions.set(toolCall.id, {
         toolCallId: toolCall.id,
         toolCall,
         result: orphanResult,
         status: resultStatus,
-        startedAt: nowIso,
-        updatedAt: nowIso,
+        startedAt,
+        updatedAt: startedAt,
         timeoutAt,
       });
 
@@ -258,7 +264,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
-  addToolResult: (toolResult) => {
+  addToolResult: (toolResult, options) => {
     set((state) => {
       const incomingToolCallId = toolResult.toolCallId;
       if (!incomingToolCallId) {
@@ -278,6 +284,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
       }
       const nowIso = new Date().toISOString();
+      const updatedAt =
+        typeof options?.updatedAt === 'string' && options.updatedAt.trim()
+          ? options.updatedAt.trim()
+          : nowIso;
       const existingExecution = state.toolExecutions.get(incomingToolCallId);
 
       if (!existingExecution) {
@@ -339,7 +349,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ...existingExecution,
         result: toolResult,
         status: nextStatus,
-        updatedAt: nowIso,
+        updatedAt,
         resultArrivedAfterTimeout:
           existingExecution.status === 'timeout' ? true : existingExecution.resultArrivedAfterTimeout,
       });
@@ -440,6 +450,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearSubtasks: () => {
     set({ activeSubtasks: new Map() });
+  },
+
+  prependMessages: (olderFirst) => {
+    if (!olderFirst.length) {
+      return;
+    }
+    set((state) => ({
+      messages: [...olderFirst, ...state.messages],
+    }));
   },
 
   clearMessages: () => {

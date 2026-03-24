@@ -30,6 +30,7 @@ import {
   playAudioBase64,
   sanitizeTtsText,
   stopAllTts,
+  normalizeFinalContent,
 } from '../utils';
 import {
   normalizeToolCallPayload,
@@ -76,59 +77,6 @@ interface UseWebSocketReturn {
     answers: UserAnswer[]
   ) => Promise<void>;
   getInflightCount: () => number;
-}
-
-function decodeQuotedPythonLikeString(raw: string): string {
-  return raw
-    .replace(/\\r/g, '\r')
-    .replace(/\\n/g, '\n')
-    .replace(/\\t/g, '\t')
-    .replace(/\\'/g, "'")
-    .replace(/\\"/g, '"')
-    .replace(/\\\\/g, '\\');
-}
-
-function normalizeFinalDisplayText(text: string): string {
-  return text.replace(/^(?:\r?\n)+/, '');
-}
-
-function normalizeFinalContent(payload: Record<string, unknown>): string {
-  const rawContent = payload.content;
-  if (typeof rawContent !== 'string') {
-    return '';
-  }
-
-  const trimmed = rawContent.trim();
-
-  // 优先按标准 JSON 解析（例如 {"output":"...","result_type":"answer"}）
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-    try {
-      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-      if (typeof parsed.output === 'string') {
-        return normalizeFinalDisplayText(parsed.output);
-      }
-    } catch {
-      // ignore: 继续尝试 Python dict 风格兼容解析
-    }
-  }
-
-  // 常规场景：后端直接返回纯文本
-  if (!trimmed.includes('result_type') || !trimmed.includes('output')) {
-    return normalizeFinalDisplayText(rawContent);
-  }
-
-  // 兼容后端返回的 Python dict 字符串（例如 "{'output': '...'}"）
-  const singleQuoted = rawContent.match(/['"]output['"]\s*:\s*'((?:\\'|[^'])*)'/s);
-  if (singleQuoted?.[1] != null) {
-    return normalizeFinalDisplayText(decodeQuotedPythonLikeString(singleQuoted[1]));
-  }
-
-  const doubleQuoted = rawContent.match(/['"]output['"]\s*:\s*"((?:\\"|[^"])*)"/s);
-  if (doubleQuoted?.[1] != null) {
-    return normalizeFinalDisplayText(decodeQuotedPythonLikeString(doubleQuoted[1]));
-  }
-
-  return normalizeFinalDisplayText(rawContent);
 }
 
 function normalizeAgentMode(rawMode: unknown): AgentMode {

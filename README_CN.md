@@ -35,6 +35,28 @@
   <strong>⚡ 一个始终在线、数据自主的专属AI助理 ⚡</strong>
 </p>
 
+## ⚠️ 版本升级提醒
+
+**如果您从旧版本升级到 v0.1.7：**
+
+由于本版本包含重大变更，升级后**必须**重新初始化 JiuwenClaw，否则服务将无法启动。
+
+### 升级前备份数据
+
+| 数据类型 | 原路径 | 说明 |
+|---------|--------|------|
+| 记忆数据 | `.jiuwenclaw/workspace/agent/memory` | 所有对话记忆 |
+| 自定义技能 | `.jiuwenclaw/workspace/agent/skills` | 您的自定义技能 |
+| 配置文件 | `.jiuwenclaw/config` | 应用设置 |
+
+### 数据迁移步骤
+
+升级并运行 `jiuwenclaw-init` 后，请手动迁移数据：
+
+1. **迁移记忆数据**：将原目录下的 `.jiuwenclaw/workspace/agent/memory` 复制到 `.jiuwenclaw/agent/memory`
+
+2. **迁移技能数据**：将原目录下的 `.jiuwenclaw/workspace/agent/skills` 复制到 `.jiuwenclaw/agent/skills`
+
 ## 🚀 快速上手
 
 ### 📦 安装

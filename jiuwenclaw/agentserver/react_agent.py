@@ -610,6 +610,17 @@ class JiuClawReActAgent(ReActAgent):
 
                 # Handle auto-scan evolution after answer
                 history = self._pending_auto_evolution_history
+
+                # If no auto evolution, send processing_complete directly
+                if history is None and self._evolution_service is not None and session is not None:
+                    await session.write_stream(
+                        OutputSchema(
+                            type="processing_complete",
+                            index=0,
+                            payload={},
+                        )
+                    )
+
                 if history is not None and self._evolution_service is not None and session is not None:
                     # Signal frontend that main processing is done before evolution starts,
                     # so new user input is treated as a normal submit (not interrupt).
@@ -807,6 +818,13 @@ class JiuClawReActAgent(ReActAgent):
                             "result": str(result)[:1000] if result is not None else "",
                         }
                     },
+                )
+            )
+            await session.write_stream(
+                OutputSchema(
+                    type="thinking",
+                    index=0,
+                    payload={},
                 )
             )
         except Exception:

@@ -113,6 +113,7 @@ class FeishuChannel(BaseChannel):
 
     async def _handle_message(
         self,
+        message_id: str,
         chat_id: str,
         content: str,
         metadata: dict[str, Any] | None = None,
@@ -127,9 +128,17 @@ class FeishuChannel(BaseChannel):
             content: 消息内容
             metadata: 额外的元数据
         """
-        msg = Message(id=chat_id, type="req", channel_id=self.name, session_id=str(chat_id),
-            params={"content": content, "query": content}, timestamp=time.time(), ok=True,
-            req_method=ReqMethod.CHAT_SEND, is_stream=True, metadata=metadata)
+        msg = Message(
+            id=message_id,
+            type="req",
+            channel_id=self.name,
+            session_id=str(chat_id),
+            params={"content": content, "query": content},
+            timestamp=time.time(), ok=True,
+            req_method=ReqMethod.CHAT_SEND,
+            is_stream=True,
+            metadata=metadata
+        )
         if self._message_callback:
             self._message_callback(msg)
         else:
@@ -597,13 +606,6 @@ class FeishuChannel(BaseChannel):
                     self._stream_text_buffers[stream_key] = (
                         self._stream_text_buffers.get(stream_key, "") + delta
                     )
-                    # 开启流式时实时发送增量（思考过程）
-                    if streaming_enabled:
-                        await self._send_feishu_message(
-                            *self._extract_receive_info(msg),
-                            self._build_card_content(delta),
-                            msg.id,
-                        )
                 return
 
             # 非 streaming 模式下仅下发最终结果，屏蔽执行过程类事件。
@@ -634,7 +636,8 @@ class FeishuChannel(BaseChannel):
                 elif event_name in {"chat.error", "chat.interrupt_result"}:
                     self._stream_text_buffers.pop(stream_key, None)
                 content_str = self._extract_message_content(msg)
-                if event_name == "chat.final":
+                is_complete = msg.payload.get("is_complete", False)
+                if is_complete:
                     content_str = self._merge_stream_and_final_content(
                         buffered_text,
                         content_str,
@@ -935,7 +938,7 @@ class FeishuChannel(BaseChannel):
         response = self._api_client.im.v1.message.create(request)
 
         if not response.success():
-            logger.error(
+            logger.warning(
                 f"发送飞书消息失败: 错误码={response.code}, "
                 f"消息={response.msg}, 日志ID={response.get_log_id()}"
             )
@@ -1005,6 +1008,7 @@ class FeishuChannel(BaseChannel):
 
             # 处理消息：将平台身份写入 metadata，供回发时使用（与 session_id 解耦，\new_session 后仍可正确回发）
             await self._handle_message(
+                message_id=message.message_id,
                 chat_id=message.chat_id,
                 content=content,
                 metadata={

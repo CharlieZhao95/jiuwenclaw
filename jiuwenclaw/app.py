@@ -105,6 +105,7 @@ _FORWARD_REQ_METHODS = frozenset({
     "chat.interrupt",
     "chat.resume",
     "chat.user_answer",
+    "history.get",
     # "tts.synthesize",
     "skills.marketplace.list",
     "skills.list",
@@ -630,6 +631,15 @@ def _register_web_handlers(
         request_id = params.get("request_id") if isinstance(params, dict) else None
         if isinstance(request_id, str) and request_id:
             payload["request_id"] = request_id
+        await channel.send_response(ws, req_id, ok=True, payload=payload)
+
+    async def _history_get(ws, req_id, params, session_id):
+        payload = {"accepted": True, "session_id": session_id}
+        if isinstance(params, dict):
+            if "session_id" in params:
+                payload["session_id"] = params.get("session_id")
+            if "page_idx" in params:
+                payload["page_idx"] = params.get("page_idx")
         await channel.send_response(ws, req_id, ok=True, payload=payload)
 
     async def _locale_get_conf(ws, req_id, params, session_id):
@@ -1258,6 +1268,7 @@ def _register_web_handlers(
     channel.register_method("chat.resume", _chat_resume)
     channel.register_method("chat.interrupt", _chat_interrupt)
     channel.register_method("chat.user_answer", _chat_user_answer)
+    channel.register_method("history.get", _history_get)
     channel.register_method("locale.get_conf", _locale_get_conf)
     channel.register_method("locale.set_conf", _locale_set_conf)
     channel.register_method("updater.get_status", _updater_get_status)
@@ -1442,7 +1453,10 @@ async def _run() -> None:
         method_val = getattr(getattr(msg, "req_method", None), "value", None) or ""
         if method_val not in _FORWARD_REQ_METHODS:
             return False
-        is_stream = bool(msg.is_stream or method_val == ReqMethod.CHAT_SEND.value)
+        is_stream = bool(
+            msg.is_stream
+            or method_val in (ReqMethod.CHAT_SEND.value, ReqMethod.HISTORY_GET.value)
+        )
         params = dict(msg.params or {})
         if "query" not in params and "content" in params:
             params["query"] = params["content"]

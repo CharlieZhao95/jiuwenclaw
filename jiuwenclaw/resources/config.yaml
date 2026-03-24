@@ -85,6 +85,19 @@ embed:
   embed_base_url: ${EMBED_API_BASE}
   embed_model: ${EMBED_MODEL}
 
+task_memory:
+  # Set enabled: true to activate TaskMemoryService skill tools
+  # (experience_retrieve, experience_learn, experience_clear)
+  enabled: false
+  # Override defaults below if task memory uses a different model/key than the main agent
+  llm_model: ${TASK_MEMORY_LLM_MODEL}
+  embedding_model: ${TASK_MEMORY_EMBED_MODEL}
+  api_key: ${TASK_MEMORY_API_KEY}
+  api_base: ${TASK_MEMORY_API_BASE}
+  # Retrieval and summary algorithms: ACE | ReasoningBank | ReMe
+  retrieval_algo: ACE
+  summary_algo: ACE
+
 heartbeat:
   # 心跳间隔（秒），默认 60
   every: 3600
@@ -122,6 +135,8 @@ channels:
     api_key:
     push_url:
     file_upload_url:
+    # 小艺手机端插件tools调用，会添加相关tools到系统提示词
+    phone_tools_enabled: false
   dingtalk:
     # 钉钉应用配置
     client_id:
