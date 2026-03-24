@@ -66,6 +66,8 @@ class ReqMethod(Enum):
     UPDATER_GET_STATUS = "updater.get_status"
     UPDATER_CHECK = "updater.check"
     UPDATER_DOWNLOAD = "updater.download"
+    UPDATER_GET_CONF = "updater.get_conf"
+    UPDATER_SET_CONF = "updater.set_conf"
 
 class EventType(Enum):
     CONNECTION_ACK = "connection.ack"

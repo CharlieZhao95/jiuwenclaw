@@ -662,6 +662,8 @@
   "updatePanel": {
     "title": "App Updates",
     "subtitle": "Check for new versions and download the silent Windows installer.",
+    "configTitle": "Update Source Config",
+    "configSubtitle": "You can switch to a local test endpoint such as http://127.0.0.1:8000/latest.json.",
     "checkNow": "Check for updates",
     "checking": "Checking...",
     "downloadAndInstall": "Download update",
@@ -690,10 +692,21 @@
     },
     "errors": {
       "loadFailed": "Failed to load update status",
+      "loadConfigFailed": "Failed to load updater config",
       "checkFailed": "Failed to check for updates",
       "downloadFailed": "Failed to download the update",
+      "saveConfigFailed": "Failed to save updater config",
       "installUnavailable": "The installer cannot be started here. Please run inside the Windows desktop app.",
       "installFailed": "Failed to launch the update installer"
+    },
+    "fields": {
+      "enabled": "Enable updater",
+      "timeoutSeconds": "Timeout seconds",
+      "releaseApiUrl": "Release API URL",
+      "repoOwner": "GitHub owner",
+      "repoName": "GitHub repo",
+      "assetPattern": "Installer asset pattern",
+      "sha256Pattern": "SHA256 asset pattern"
     }
   },
   "version": "Version {{version}}",

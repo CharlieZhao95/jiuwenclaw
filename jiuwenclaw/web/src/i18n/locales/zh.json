@@ -662,6 +662,8 @@
   "updatePanel": {
     "title": "应用更新",
     "subtitle": "检查新版本并在 Windows 上下载静默安装包。",
+    "configTitle": "更新源配置",
+    "configSubtitle": "支持直接切换到本地测试地址，例如 http://127.0.0.1:8000/latest.json",
     "checkNow": "检查更新",
     "checking": "检查中...",
     "downloadAndInstall": "下载更新",
@@ -690,10 +692,21 @@
     },
     "errors": {
       "loadFailed": "获取更新状态失败",
+      "loadConfigFailed": "获取更新配置失败",
       "checkFailed": "检查更新失败",
       "downloadFailed": "下载更新失败",
+      "saveConfigFailed": "保存更新配置失败",
       "installUnavailable": "当前环境无法直接触发安装，请确认在 Windows 桌面应用内运行。",
       "installFailed": "启动更新安装失败"
+    },
+    "fields": {
+      "enabled": "启用更新",
+      "timeoutSeconds": "超时秒数",
+      "releaseApiUrl": "更新地址",
+      "repoOwner": "GitHub Owner",
+      "repoName": "GitHub 仓库名",
+      "assetPattern": "安装包命名规则",
+      "sha256Pattern": "校验文件命名规则"
     }
   },
   "version": "版本 {{version}}",

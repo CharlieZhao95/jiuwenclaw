@@ -20,6 +20,16 @@ interface UpdateStatusPayload {
   platform_supported?: unknown;
 }
 
+interface UpdaterConfigPayload {
+  enabled?: unknown;
+  repo_owner?: unknown;
+  repo_name?: unknown;
+  release_api_url?: unknown;
+  asset_name_pattern?: unknown;
+  sha256_name_pattern?: unknown;
+  timeout_seconds?: unknown;
+}
+
 function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }
@@ -61,8 +71,10 @@ function formatPublishedAt(value: string, locale: string): string {
 export function UpdatePanel({ isConnected, request }: UpdatePanelProps) {
   const { t, i18n } = useTranslation();
   const [status, setStatus] = useState<UpdateStatusPayload | null>(null);
+  const [config, setConfig] = useState<UpdaterConfigPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refreshStatus = useCallback(async () => {
@@ -77,10 +89,21 @@ export function UpdatePanel({ isConnected, request }: UpdatePanelProps) {
     }
   }, [request, t]);
 
+  const refreshConfig = useCallback(async () => {
+    try {
+      const payload = await request<UpdaterConfigPayload>('updater.get_conf');
+      setConfig(payload);
+      return payload;
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : t('updatePanel.errors.loadConfigFailed'));
+      return null;
+    }
+  }, [request, t]);
+
   useEffect(() => {
     setLoading(true);
-    void refreshStatus().finally(() => setLoading(false));
-  }, [refreshStatus]);
+    void Promise.all([refreshStatus(), refreshConfig()]).finally(() => setLoading(false));
+  }, [refreshConfig, refreshStatus]);
 
   useEffect(() => {
     if (normalizeString(status?.state) !== 'downloading') {
@@ -121,6 +144,34 @@ export function UpdatePanel({ isConnected, request }: UpdatePanelProps) {
     }
   }, [isConnected, request, t]);
 
+  const handleConfigChange = useCallback((key: keyof UpdaterConfigPayload, value: string | boolean) => {
+    setConfig((prev) => ({ ...(prev ?? {}), [key]: value }));
+  }, []);
+
+  const handleSaveConfig = useCallback(async () => {
+    if (!config || savingConfig) {
+      return;
+    }
+    setSavingConfig(true);
+    setError(null);
+    try {
+      const payload = await request<UpdaterConfigPayload>('updater.set_conf', {
+        enabled: normalizeBoolean(config.enabled),
+        repo_owner: normalizeString(config.repo_owner),
+        repo_name: normalizeString(config.repo_name),
+        release_api_url: normalizeString(config.release_api_url),
+        asset_name_pattern: normalizeString(config.asset_name_pattern),
+        sha256_name_pattern: normalizeString(config.sha256_name_pattern),
+        timeout_seconds: normalizeNumber(config.timeout_seconds),
+      });
+      setConfig(payload);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : t('updatePanel.errors.saveConfigFailed'));
+    } finally {
+      setSavingConfig(false);
+    }
+  }, [config, request, savingConfig, t]);
+
   const handleInstall = useCallback(async () => {
     const installerPath = normalizeString(status?.downloaded_path);
     const api = (window as Window & { pywebview?: { api?: { install_update?: (path: string) => Promise<boolean> | boolean } } }).pywebview?.api;
@@ -153,6 +204,7 @@ export function UpdatePanel({ isConnected, request }: UpdatePanelProps) {
   const canDownload = isConnected && hasUpdate && state !== 'downloading' && state !== 'downloaded';
   const canInstall = state === 'downloaded' && normalizeString(status?.downloaded_path).length > 0;
   const platformSupported = status == null ? true : normalizeBoolean(status.platform_supported);
+  const configEnabled = normalizeBoolean(config?.enabled);
 
   return (
     <div className="flex-1 min-h-0">
@@ -229,6 +281,87 @@ export function UpdatePanel({ isConnected, request }: UpdatePanelProps) {
           <pre className="mt-3 max-h-[28rem] overflow-auto whitespace-pre-wrap break-words font-sans text-sm text-text">
             {loading ? t('common.loading') : releaseNotes || t('updatePanel.noReleaseNotes')}
           </pre>
+        </div>
+
+        <div className="rounded-xl border border-border bg-panel-strong/60 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-text">{t('updatePanel.configTitle')}</div>
+              <p className="mt-1 text-sm text-text-muted">{t('updatePanel.configSubtitle')}</p>
+            </div>
+            <button onClick={() => void handleSaveConfig()} className="btn secondary" disabled={savingConfig || !config}>
+              {savingConfig ? t('common.saving') : t('common.save')}
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <label className="card !p-4">
+              <div className="text-xs uppercase tracking-wide text-text-muted">{t('updatePanel.fields.enabled')}</div>
+              <div className="mt-3 flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={configEnabled}
+                  onChange={(event) => handleConfigChange('enabled', event.target.checked)}
+                />
+                <span className="text-sm text-text">{configEnabled ? t('common.ok') : t('common.cancel')}</span>
+              </div>
+            </label>
+
+            <label className="card !p-4">
+              <div className="text-xs uppercase tracking-wide text-text-muted">{t('updatePanel.fields.timeoutSeconds')}</div>
+              <input
+                className="input mt-3"
+                value={String(normalizeNumber(config?.timeout_seconds) || 20)}
+                onChange={(event) => handleConfigChange('timeout_seconds', event.target.value)}
+              />
+            </label>
+
+            <label className="card !p-4 md:col-span-2">
+              <div className="text-xs uppercase tracking-wide text-text-muted">{t('updatePanel.fields.releaseApiUrl')}</div>
+              <input
+                className="input mt-3"
+                value={normalizeString(config?.release_api_url)}
+                onChange={(event) => handleConfigChange('release_api_url', event.target.value)}
+                placeholder="http://127.0.0.1:8000/latest.json"
+              />
+            </label>
+
+            <label className="card !p-4">
+              <div className="text-xs uppercase tracking-wide text-text-muted">{t('updatePanel.fields.repoOwner')}</div>
+              <input
+                className="input mt-3"
+                value={normalizeString(config?.repo_owner)}
+                onChange={(event) => handleConfigChange('repo_owner', event.target.value)}
+              />
+            </label>
+
+            <label className="card !p-4">
+              <div className="text-xs uppercase tracking-wide text-text-muted">{t('updatePanel.fields.repoName')}</div>
+              <input
+                className="input mt-3"
+                value={normalizeString(config?.repo_name)}
+                onChange={(event) => handleConfigChange('repo_name', event.target.value)}
+              />
+            </label>
+
+            <label className="card !p-4">
+              <div className="text-xs uppercase tracking-wide text-text-muted">{t('updatePanel.fields.assetPattern')}</div>
+              <input
+                className="input mt-3"
+                value={normalizeString(config?.asset_name_pattern)}
+                onChange={(event) => handleConfigChange('asset_name_pattern', event.target.value)}
+              />
+            </label>
+
+            <label className="card !p-4">
+              <div className="text-xs uppercase tracking-wide text-text-muted">{t('updatePanel.fields.sha256Pattern')}</div>
+              <input
+                className="input mt-3"
+                value={normalizeString(config?.sha256_name_pattern)}
+                onChange={(event) => handleConfigChange('sha256_name_pattern', event.target.value)}
+              />
+            </label>
+          </div>
         </div>
       </div>
     </div>

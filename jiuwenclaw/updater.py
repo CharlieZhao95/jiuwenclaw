@@ -92,6 +92,18 @@ class WindowsUpdaterService:
         status["platform_supported"] = sys.platform == "win32"
         return status
 
+    def get_runtime_config(self) -> dict[str, Any]:
+        config = self._load_config()
+        return {
+            "enabled": config["enabled"],
+            "repo_owner": config["repo_owner"],
+            "repo_name": config["repo_name"],
+            "release_api_url": config["release_api_url"],
+            "asset_name_pattern": config["asset_name_pattern"],
+            "sha256_name_pattern": config["sha256_name_pattern"],
+            "timeout_seconds": config["timeout_seconds"],
+        }
+
     def check(self, manual: bool = False) -> dict[str, Any]:
         if sys.platform != "win32":
             self._update_status(state="unsupported", error="Windows updater is only available on Windows.")

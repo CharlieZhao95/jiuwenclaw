@@ -65,6 +65,7 @@ from jiuwenclaw.config import (
     update_preferred_language_in_config,
     update_context_engine_enabled_in_config,
     update_permissions_enabled_in_config,
+    update_updater_in_config,
 )
 from jiuwenclaw.updater import WindowsUpdaterService
 from jiuwenclaw.version import __version__
@@ -400,6 +401,38 @@ def _register_web_handlers(
         service = updater_service or WindowsUpdaterService()
         payload = service.start_download()
         await channel.send_response(ws, req_id, ok=True, payload=payload)
+
+    async def _updater_get_conf(ws, req_id, params, session_id):
+        service = updater_service or WindowsUpdaterService()
+        await channel.send_response(ws, req_id, ok=True, payload=service.get_runtime_config())
+
+    async def _updater_set_conf(ws, req_id, params, session_id):
+        if not isinstance(params, dict):
+            await channel.send_response(ws, req_id, ok=False, error="params must be object", code="BAD_REQUEST")
+            return
+
+        updates: dict[str, Any] = {}
+        if "enabled" in params:
+            updates["enabled"] = bool(params.get("enabled"))
+        for key in ("repo_owner", "repo_name", "release_api_url", "asset_name_pattern", "sha256_name_pattern"):
+            if key in params:
+                updates[key] = str(params.get(key) or "").strip()
+        if "timeout_seconds" in params:
+            try:
+                updates["timeout_seconds"] = max(5, int(params.get("timeout_seconds")))
+            except (TypeError, ValueError):
+                await channel.send_response(ws, req_id, ok=False, error="timeout_seconds must be integer", code="BAD_REQUEST")
+                return
+
+        try:
+            update_updater_in_config(updates)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[updater.set_conf] 写回 config.yaml 失败: %s", exc)
+            await channel.send_response(ws, req_id, ok=False, error=str(exc), code="INTERNAL_ERROR")
+            return
+
+        service = updater_service or WindowsUpdaterService()
+        await channel.send_response(ws, req_id, ok=True, payload=service.get_runtime_config())
 
     async def _session_list(ws, req_id, params, session_id):
         """返回 agent/sessions 下的 session_id 列表（子目录名）。"""
@@ -1230,6 +1263,8 @@ def _register_web_handlers(
     channel.register_method("updater.get_status", _updater_get_status)
     channel.register_method("updater.check", _updater_check)
     channel.register_method("updater.download", _updater_download)
+    channel.register_method("updater.get_conf", _updater_get_conf)
+    channel.register_method("updater.set_conf", _updater_set_conf)
     channel.register_method("heartbeat.get_conf", _heartbeat_get_conf)
     channel.register_method("heartbeat.set_conf", _heartbeat_set_conf)
     channel.register_method("channel.feishu.get_conf", _channel_feishu_get_conf)
