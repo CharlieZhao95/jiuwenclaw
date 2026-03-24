@@ -12,6 +12,8 @@ import time
 
 from logging.handlers import RotatingFileHandler
 
+import webview
+
 from jiuwenclaw.utils import USER_WORKSPACE_DIR, get_logs_dir
 
 
@@ -121,21 +123,8 @@ DESKTOP_BRIDGE_SCRIPT = r"""
       padding: 4px;
       margin-left: 0;
     }
-    .topbar {
-      -webkit-app-region: drag;
-    }
-    .topbar button,
-    .topbar input,
-    .topbar textarea,
-    .topbar select,
-    .topbar a,
-    .topbar [role="button"],
-    .topbar .theme-toggle,
-    .topbar .pill,
-    .topbar .mono,
-    #__jiuwenclaw_desktop_controls,
-    #__jiuwenclaw_desktop_controls * {
-      -webkit-app-region: no-drag;
+    .pywebview-drag-region {
+      cursor: default;
     }
   `;
 
@@ -190,6 +179,7 @@ DESKTOP_BRIDGE_SCRIPT = r"""
   const mountControls = () => {
     const topbar = document.querySelector('.topbar');
     if (topbar instanceof HTMLElement) {
+      topbar.classList.add('pywebview-drag-region');
       const rightZone = topbar.lastElementChild;
       if (rightZone instanceof HTMLElement) {
         rightZone.appendChild(container);
@@ -462,13 +452,6 @@ class DesktopRuntime:
     def run(self, window_title: str, width: int, height: int, debug: bool) -> None:
         self.start_services()
 
-        try:
-            import webview
-        except ImportError as exc:
-            raise SystemExit(
-                "pywebview is required for desktop mode. Install with `uv sync --extra dev` or `pip install jiuwenclaw[desktop]`."
-            ) from exc
-
         storage_path = USER_WORKSPACE_DIR / "tmp" / "webview"
         storage_path.mkdir(parents=True, exist_ok=True)
 
@@ -481,6 +464,7 @@ class DesktopRuntime:
             min_size=(1100, 720),
             frameless=True,
             easy_drag=False,
+            draggable=True,
             text_select=True,
             background_color="#0f172a",
         )

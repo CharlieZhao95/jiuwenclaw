@@ -6,7 +6,7 @@
 #define MyDistDir "..\dist\jiuwenclaw"
 
 [Setup]
-AppId={{6DDF1C96-B2CE-4A2F-A7E7-A2E8627AE0A2}
+AppId={{6DDF1C96-B2CE-4A2F-A7E7-A2E8627AE0A2}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
@@ -60,7 +60,7 @@ Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: no
 [Code]
 function UserWorkspaceDir(): string;
 begin
-  Result := ExpandConstant('{userprofile}') + '\.jiuwenclaw';
+  Result := ExpandConstant('{userappdata}') + '\..\.jiuwenclaw';
 end;
 
 function EnvFilePath(): string;
