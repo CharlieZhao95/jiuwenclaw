@@ -1,12 +1,13 @@
-# JiuwenClaw 打包为独立 exe 指南
+# JiuwenClaw 桌面打包指南
 
-本文档说明如何使用 uv + PyInstaller + pywebview 将 JiuwenClaw 打包成 Windows 桌面应用。最终产物为 `onedir` 分发目录，适合继续交给 Inno Setup 制作安装包。
+本文档说明如何使用 uv + PyInstaller + pywebview 将 JiuwenClaw 打包成桌面应用。当前支持 Windows `onedir` 分发目录和 macOS `.app + .dmg`。
 
 ## 前置要求
 
 - **uv**：项目使用的 Python 包管理器
 - **Node.js**：仅用于**构建时**编译前端，最终桌面程序不依赖 Node.js
-- **Windows**：当前 spec 与 pywebview 桌面壳按 Windows 优先配置
+- **Windows**：支持 `onedir` 分发目录，适合继续交给 Inno Setup 制作安装包
+- **macOS**：支持生成 `.app` 与 `.dmg`
 
 ## 打包相关文件位置
 
@@ -19,8 +20,9 @@
 | `jiuwenclaw/desktop_app.py` | pywebview 桌面窗口与本地服务编排 |
 | `scripts/build-exe.ps1` | 一键打包脚本（PowerShell） |
 | `scripts/build-exe.bat` | 一键打包脚本（批处理） |
+| `scripts/build-macos.sh` | macOS `.app + .dmg` 构建脚本 |
 
-## 打包步骤
+## Windows 打包步骤
 
 ### 方式一：使用脚本（推荐）
 
@@ -71,7 +73,7 @@ uv run pyinstaller scripts/jiuwenclaw.spec
 
 成功后，桌面版位于 `dist/jiuwenclaw/`，主程序为 `dist/jiuwenclaw/jiuwenclaw.exe`。
 
-## 使用打包后的 exe
+## 使用打包后的 Windows 桌面版
 
 ### 首次使用
 
@@ -107,6 +109,34 @@ uv run pyinstaller scripts/jiuwenclaw.spec
 | `jiuwenclaw.exe` | 启动桌面应用 |
 | `jiuwenclaw.exe init` | 初始化工作区（首次使用） |
 
+## macOS 打包步骤
+
+在 macOS 机器上执行：
+
+```bash
+chmod +x scripts/build-macos.sh
+./scripts/build-macos.sh
+```
+
+脚本会自动完成：安装依赖 → 构建前端 → 使用 PyInstaller 生成 `JiuwenClaw.app` → 生成 `JiuwenClaw-0.1.7.dmg`。
+
+生成后的产物：
+
+- `dist/JiuwenClaw.app`
+- `dist/JiuwenClaw-0.1.7.dmg`
+
+验证方式：
+
+1. 双击 `dist/JiuwenClaw.app`
+2. 或挂载 `dist/JiuwenClaw-0.1.7.dmg`
+3. 将 `JiuwenClaw.app` 拖到 `Applications`
+
+注意事项：
+
+- 当前 `.app` 未做 `codesign` / notarization，仅适合本机验证或内部测试
+- 首次打开可能需要在 Finder 中右键选择“打开”绕过 Gatekeeper
+- 如果后续要正式分发，建议补 `.icns`、签名和公证流程
+
 ## 技术说明
 
 - **Python 运行时**：PyInstaller 将 Python 解释器及依赖打包进桌面分发目录，目标机器无需安装 Python。
@@ -114,6 +144,7 @@ uv run pyinstaller scripts/jiuwenclaw.spec
 - **Node.js**：前端在构建阶段用 Node 编译，运行时只使用静态文件。
 - **工作区路径**：与 pip 安装一致，使用 `~/.jiuwenclaw` 作为配置与工作区根目录。
 - **安装包制作**：后续使用 Inno Setup 时，请将整个 `dist/jiuwenclaw/` 目录作为安装源，而不是只取单个 exe。
+- **macOS DMG**：当前脚本会在 DMG 中附带 `Applications` 快捷方式，方便拖拽安装。
 
 ## 常见问题
 
