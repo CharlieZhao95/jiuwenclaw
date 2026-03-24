@@ -66,6 +66,8 @@ from jiuwenclaw.config import (
     update_context_engine_enabled_in_config,
     update_permissions_enabled_in_config,
 )
+from jiuwenclaw.updater import WindowsUpdaterService
+from jiuwenclaw.version import __version__
 
 _PROJECT_ROOT = get_root_dir()
 _ENV_FILE = get_env_file()
@@ -200,6 +202,7 @@ def _register_web_handlers(
         on_config_saved=None,
         heartbeat_service=None,
         cron_controller=None,
+        updater_service: WindowsUpdaterService | None = None,
 ):
     """注册 Web 前端需要的 method 与 on_connect。
     on_config_saved: 可选，config.set 写回 .env 后调用的回调；返回 True 表示已热更新未重启，False 表示已安排进程重启。
@@ -267,6 +270,7 @@ def _register_web_handlers(
             param_key: (os.getenv(env_key) or "")
             for param_key, env_key in _CONFIG_SET_ENV_MAP.items()
         }
+        payload["app_version"] = __version__
         # 合并 config.yaml 中的配置项
         try:
             raw = get_config_raw()
@@ -381,6 +385,21 @@ def _register_web_handlers(
         else:
             channels = []
         await channel.send_response(ws, req_id, ok=True, payload={"channels": channels})
+
+    async def _updater_get_status(ws, req_id, params, session_id):
+        service = updater_service or WindowsUpdaterService()
+        await channel.send_response(ws, req_id, ok=True, payload=service.get_status())
+
+    async def _updater_check(ws, req_id, params, session_id):
+        service = updater_service or WindowsUpdaterService()
+        manual = bool((params or {}).get("manual", False)) if isinstance(params, dict) else False
+        payload = await asyncio.to_thread(service.check, manual)
+        await channel.send_response(ws, req_id, ok=True, payload=payload)
+
+    async def _updater_download(ws, req_id, params, session_id):
+        service = updater_service or WindowsUpdaterService()
+        payload = service.start_download()
+        await channel.send_response(ws, req_id, ok=True, payload=payload)
 
     async def _session_list(ws, req_id, params, session_id):
         """返回 agent/sessions 下的 session_id 列表（子目录名）。"""
@@ -1208,6 +1227,9 @@ def _register_web_handlers(
     channel.register_method("chat.user_answer", _chat_user_answer)
     channel.register_method("locale.get_conf", _locale_get_conf)
     channel.register_method("locale.set_conf", _locale_set_conf)
+    channel.register_method("updater.get_status", _updater_get_status)
+    channel.register_method("updater.check", _updater_check)
+    channel.register_method("updater.download", _updater_download)
     channel.register_method("heartbeat.get_conf", _heartbeat_get_conf)
     channel.register_method("heartbeat.set_conf", _heartbeat_set_conf)
     channel.register_method("channel.feishu.get_conf", _channel_feishu_get_conf)
@@ -1346,6 +1368,7 @@ async def _run() -> None:
     initial_channels_conf: dict = channels_cfg if isinstance(channels_cfg, dict) else {}
 
     channel_manager = ChannelManager(message_handler, config=initial_channels_conf)
+    updater_service = WindowsUpdaterService()
 
     def _on_config_saved(updated_env_keys: set[str] | None = None) -> bool:
         """先尝试热更新，失败则安排延迟重启。返回 True 表示已热更新未重启，False 表示已安排重启。"""
@@ -1377,6 +1400,7 @@ async def _run() -> None:
         on_config_saved=_on_config_saved,
         heartbeat_service=heartbeat_service,
         cron_controller=cron_controller,
+        updater_service=updater_service,
     )
 
     def _norm_and_forward(msg: Message) -> bool:
