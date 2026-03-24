@@ -8,6 +8,7 @@ r"""JiuwenClaw PyInstaller 打包配置。
 """
 
 import os
+import sys
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
@@ -24,8 +25,8 @@ except Exception as exc:
         "例如: pip install pywebview 或 uv sync --extra dev"
     ) from exc
 
-# 这里只显式打包 Windows 桌面模式会用到的 pywebview 模块，
-# 避免 collect_submodules("webview") 把 Android/Kivy 后端也扫描进来。
+# 只显式打包当前平台会用到的 pywebview 模块，
+# 避免 collect_submodules("webview") 把 Android/Kivy 等后端也扫描进来。
 webview_hiddenimports = [
     "webview",
     "webview.guilib",
@@ -37,9 +38,16 @@ webview_hiddenimports = [
     "webview.screen",
     "webview.util",
     "webview.window",
-    "webview.platforms.edgechromium",
-    "webview.platforms.winforms",
 ]
+if sys.platform == "win32":
+    webview_hiddenimports.extend([
+        "webview.platforms.edgechromium",
+        "webview.platforms.winforms",
+    ])
+elif sys.platform == "darwin":
+    webview_hiddenimports.extend([
+        "webview.platforms.cocoa",
+    ])
 
 # 检查前端是否已构建
 web_dist = os.path.join(project_root, "jiuwenclaw", "web", "dist")
@@ -139,3 +147,18 @@ coll = COLLECT(
     upx_exclude=[],
     name="jiuwenclaw",
 )
+
+if sys.platform == "darwin":
+    app = BUNDLE(
+        coll,
+        name="JiuwenClaw.app",
+        icon=None,
+        bundle_identifier="com.jiuwenclaw.desktop",
+        info_plist={
+            "CFBundleName": "JiuwenClaw",
+            "CFBundleDisplayName": "JiuwenClaw",
+            "CFBundleShortVersionString": "0.1.7",
+            "CFBundleVersion": "0.1.7",
+            "NSHighResolutionCapable": "True",
+        },
+    )
